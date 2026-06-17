@@ -1,0 +1,1569 @@
+{
+  "schemaVersion": "1.0.0",
+  "object": {
+    "name": "ContractOfferDispatchRequest",
+    "package": "com.acme.vendor.dto",
+    "outboundSurface": {
+      "class": "DealerPortalClient",
+      "method": "sendContractOffer",
+      "file": "src/main/java/com/acme/vendor/DealerPortalClient.java",
+      "line": 88,
+      "transport": "HTTP POST /dealer/offers"
+    }
+  },
+  "summary": {
+    "fieldsFound": 18,
+    "highConfidence": 13,
+    "mediumConfidence": 4,
+    "lowConfidence": 1,
+    "primaryOrigins": [
+      "Kafka ApplicationApprovedEvent",
+      "ContractRepository",
+      "ApplicantRepository",
+      "IncomeVerificationClient",
+      "DecisionEngineResult",
+      "application.yml"
+    ]
+  },
+  "objectShape": {
+    "name": "ContractOfferDispatchRequest",
+    "path": "$",
+    "kind": "object",
+    "type": "ContractOfferDispatchRequest",
+    "children": [
+      {
+        "name": "applicationId",
+        "path": "applicationId",
+        "kind": "field",
+        "type": "String",
+        "confidence": "high",
+        "mappingType": "direct"
+      },
+      {
+        "name": "contractId",
+        "path": "contractId",
+        "kind": "field",
+        "type": "String",
+        "confidence": "high",
+        "mappingType": "direct"
+      },
+      {
+        "name": "applicant",
+        "path": "applicant",
+        "kind": "object",
+        "type": "ApplicantDto",
+        "children": [
+          {
+            "name": "fullName",
+            "path": "applicant.fullName",
+            "kind": "field",
+            "type": "String",
+            "confidence": "high",
+            "mappingType": "derived"
+          },
+          {
+            "name": "primaryEmail",
+            "path": "applicant.primaryEmail",
+            "kind": "field",
+            "type": "String",
+            "confidence": "medium",
+            "mappingType": "lookup"
+          }
+        ]
+      },
+      {
+        "name": "financialTerms",
+        "path": "financialTerms",
+        "kind": "object",
+        "type": "FinancialTermsDto",
+        "children": [
+          {
+            "name": "amountFinanced",
+            "path": "financialTerms.amountFinanced",
+            "kind": "field",
+            "type": "BigDecimal",
+            "confidence": "high",
+            "mappingType": "direct"
+          },
+          {
+            "name": "monthlyPayment",
+            "path": "financialTerms.monthlyPayment",
+            "kind": "field",
+            "type": "BigDecimal",
+            "confidence": "high",
+            "mappingType": "direct"
+          },
+          {
+            "name": "paymentToIncomeRatio",
+            "path": "financialTerms.paymentToIncomeRatio",
+            "kind": "field",
+            "type": "BigDecimal",
+            "confidence": "medium",
+            "mappingType": "derived"
+          }
+        ]
+      },
+      {
+        "name": "vehicle",
+        "path": "vehicle",
+        "kind": "object",
+        "type": "VehicleDto",
+        "children": [
+          {
+            "name": "vin",
+            "path": "vehicle.vin",
+            "kind": "field",
+            "type": "String",
+            "confidence": "high",
+            "mappingType": "direct"
+          },
+          {
+            "name": "displayName",
+            "path": "vehicle.displayName",
+            "kind": "field",
+            "type": "String",
+            "confidence": "high",
+            "mappingType": "derived"
+          }
+        ]
+      },
+      {
+        "name": "decision",
+        "path": "decision",
+        "kind": "object",
+        "type": "DecisionDto",
+        "children": [
+          {
+            "name": "status",
+            "path": "decision.status",
+            "kind": "field",
+            "type": "DecisionStatus",
+            "confidence": "medium",
+            "mappingType": "conditional"
+          },
+          {
+            "name": "reasons[]",
+            "path": "decision.reasons[]",
+            "kind": "array",
+            "type": "List<DecisionReasonDto>",
+            "children": [
+              {
+                "name": "code",
+                "path": "decision.reasons[].code",
+                "kind": "field",
+                "type": "String",
+                "confidence": "high",
+                "mappingType": "direct-list"
+              },
+              {
+                "name": "text",
+                "path": "decision.reasons[].text",
+                "kind": "field",
+                "type": "String",
+                "confidence": "high",
+                "mappingType": "derived-list"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "dealer",
+        "path": "dealer",
+        "kind": "object",
+        "type": "DealerDto",
+        "children": [
+          {
+            "name": "dealerId",
+            "path": "dealer.dealerId",
+            "kind": "field",
+            "type": "String",
+            "confidence": "high",
+            "mappingType": "direct"
+          },
+          {
+            "name": "callbackUrl",
+            "path": "dealer.callbackUrl",
+            "kind": "field",
+            "type": "URL",
+            "confidence": "high",
+            "mappingType": "lookup"
+          }
+        ]
+      },
+      {
+        "name": "riskBand",
+        "path": "riskBand",
+        "kind": "field",
+        "type": "String",
+        "confidence": "medium",
+        "mappingType": "enriched"
+      },
+      {
+        "name": "metadata",
+        "path": "metadata",
+        "kind": "object",
+        "type": "DispatchMetadataDto",
+        "children": [
+          {
+            "name": "sourceSystem",
+            "path": "metadata.sourceSystem",
+            "kind": "field",
+            "type": "String",
+            "confidence": "high",
+            "mappingType": "config"
+          },
+          {
+            "name": "sentAt",
+            "path": "metadata.sentAt",
+            "kind": "field",
+            "type": "Instant",
+            "confidence": "high",
+            "mappingType": "runtime"
+          },
+          {
+            "name": "internalNotes",
+            "path": "metadata.internalNotes",
+            "kind": "field",
+            "type": "String",
+            "confidence": "low",
+            "mappingType": "dynamic"
+          }
+        ]
+      }
+    ]
+  },
+  "fields": [
+    {
+      "path": "applicationId",
+      "confidence": "high",
+      "mappingType": "direct",
+      "description": "Identifier copied from the inbound Kafka event and reused as the primary key for downstream loads.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "setApplicationId(appId)",
+            "subtitle": "Assignment",
+            "meta": "ContractOfferMapper.map(...) line 42",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "param",
+            "kind": "method",
+            "title": "appId parameter",
+            "subtitle": "map(ApplicationApprovedEvent event)",
+            "meta": "resolved from event.getApplicationId()",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "event",
+            "kind": "event",
+            "title": "ApplicationApprovedEvent.applicationId",
+            "subtitle": "Kafka input boundary",
+            "meta": "topic: contract.application-approved",
+            "tier": 2,
+            "row": 0
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "param",
+            "value from"
+          ],
+          [
+            "param",
+            "event",
+            "read from"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "contractId",
+      "confidence": "high",
+      "mappingType": "direct",
+      "description": "Contract identifier copied from the contract aggregate loaded by application id.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "setContractId(contract.getId())",
+            "subtitle": "Assignment",
+            "meta": "ContractOfferMapper.map(...) line 47",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "contract",
+            "kind": "source",
+            "title": "Contract.id",
+            "subtitle": "Entity field",
+            "meta": "Contract aggregate",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "repo",
+            "kind": "repository",
+            "title": "ContractRepository.findByApplicationId(appId)",
+            "subtitle": "Database boundary",
+            "meta": "table: contract",
+            "tier": 2,
+            "row": 0
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "contract",
+            "read from"
+          ],
+          [
+            "contract",
+            "repo",
+            "loaded by"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "applicant.fullName",
+      "confidence": "high",
+      "mappingType": "derived",
+      "description": "Full name is derived from individual applicant name fields and a hardcoded space delimiter. Each input field is traced separately.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "setFullName(buildFullName(applicant))",
+            "subtitle": "Assignment",
+            "meta": "ApplicantMapper.map(...) line 33",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "transform",
+            "kind": "transform",
+            "title": "NameFormatter.buildFullName(applicant)",
+            "subtitle": "Transform",
+            "meta": "first + optional middle + last",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "first",
+            "kind": "source",
+            "title": "Applicant.firstName",
+            "subtitle": "Input to derivation",
+            "meta": "Applicant entity",
+            "tier": 2,
+            "row": -1
+          },
+          {
+            "id": "middle",
+            "kind": "source",
+            "title": "Applicant.middleInitial",
+            "subtitle": "Optional input",
+            "meta": "null-safe trim",
+            "tier": 2,
+            "row": 0
+          },
+          {
+            "id": "last",
+            "kind": "source",
+            "title": "Applicant.lastName",
+            "subtitle": "Input to derivation",
+            "meta": "Applicant entity",
+            "tier": 2,
+            "row": 1
+          },
+          {
+            "id": "delimiter",
+            "kind": "constant",
+            "title": "\" \" delimiter",
+            "subtitle": "Static formatting value",
+            "meta": "NameFormatter constant",
+            "tier": 2,
+            "row": 2
+          },
+          {
+            "id": "repo",
+            "kind": "repository",
+            "title": "ApplicantRepository.findPrimaryApplicant(appId)",
+            "subtitle": "Database boundary",
+            "meta": "table: applicant",
+            "tier": 3,
+            "row": 0
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "transform",
+            "computed by"
+          ],
+          [
+            "transform",
+            "first",
+            "input"
+          ],
+          [
+            "transform",
+            "middle",
+            "input"
+          ],
+          [
+            "transform",
+            "last",
+            "input"
+          ],
+          [
+            "transform",
+            "delimiter",
+            "uses"
+          ],
+          [
+            "first",
+            "repo",
+            "loaded by"
+          ],
+          [
+            "middle",
+            "repo",
+            "loaded by"
+          ],
+          [
+            "last",
+            "repo",
+            "loaded by"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "applicant.primaryEmail",
+      "confidence": "medium",
+      "mappingType": "lookup",
+      "description": "Primary email is selected from applicant contact methods. The selected value is clear, but contact priority rules are a helper method.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "setPrimaryEmail(resolvePrimaryEmail(applicant))",
+            "subtitle": "Assignment",
+            "meta": "ApplicantMapper.map(...) line 41",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "method",
+            "kind": "method",
+            "title": "ContactSelector.resolvePrimaryEmail(applicant)",
+            "subtitle": "Lookup method",
+            "meta": "prefers PRIMARY, then first verified email",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "contacts",
+            "kind": "source",
+            "title": "Applicant.contactMethods[]",
+            "subtitle": "Input collection",
+            "meta": "Applicant entity collection",
+            "tier": 2,
+            "row": 0
+          },
+          {
+            "id": "repo",
+            "kind": "repository",
+            "title": "ApplicantRepository.findPrimaryApplicant(appId)",
+            "subtitle": "Database boundary",
+            "meta": "table: applicant_contact",
+            "tier": 3,
+            "row": 0
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "method",
+            "selected by"
+          ],
+          [
+            "method",
+            "contacts",
+            "scans"
+          ],
+          [
+            "contacts",
+            "repo",
+            "loaded by"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "financialTerms.amountFinanced",
+      "confidence": "high",
+      "mappingType": "direct",
+      "description": "Amount financed comes directly from the loaded contract terms.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "terms.setAmountFinanced(contract.getAmountFinanced())",
+            "subtitle": "Assignment",
+            "meta": "FinancialTermsMapper.map(...) line 24",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "source",
+            "kind": "source",
+            "title": "Contract.amountFinanced",
+            "subtitle": "Entity field",
+            "meta": "Contract entity",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "repo",
+            "kind": "repository",
+            "title": "ContractRepository.findByApplicationId(appId)",
+            "subtitle": "Database boundary",
+            "meta": "table: contract_terms",
+            "tier": 2,
+            "row": 0
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "source",
+            "read from"
+          ],
+          [
+            "source",
+            "repo",
+            "loaded by"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "financialTerms.monthlyPayment",
+      "confidence": "high",
+      "mappingType": "direct",
+      "description": "Monthly payment is copied from contract terms and also feeds PTI calculation.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "terms.setMonthlyPayment(contract.getMonthlyPayment())",
+            "subtitle": "Assignment",
+            "meta": "FinancialTermsMapper.map(...) line 25",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "source",
+            "kind": "source",
+            "title": "Contract.monthlyPayment",
+            "subtitle": "Entity field",
+            "meta": "Contract entity",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "repo",
+            "kind": "repository",
+            "title": "ContractRepository.findByApplicationId(appId)",
+            "subtitle": "Database boundary",
+            "meta": "table: contract_terms",
+            "tier": 2,
+            "row": 0
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "source",
+            "read from"
+          ],
+          [
+            "source",
+            "repo",
+            "loaded by"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "financialTerms.paymentToIncomeRatio",
+      "confidence": "medium",
+      "mappingType": "derived",
+      "description": "PTI is calculated from monthly payment and verified income. The monthly payment source is traced to DB; verified income stops at the external verification boundary.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "setPaymentToIncomeRatio(calculatePti(...))",
+            "subtitle": "Assignment",
+            "meta": "FinancialTermsMapper.map(...) line 31",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "transform",
+            "kind": "transform",
+            "title": "AffordabilityCalculator.calculatePti(payment, income)",
+            "subtitle": "Transform",
+            "meta": "payment / income, HALF_UP 4 decimals",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "payment",
+            "kind": "source",
+            "title": "Contract.monthlyPayment",
+            "subtitle": "Input to derivation",
+            "meta": "Contract entity",
+            "tier": 2,
+            "row": -1
+          },
+          {
+            "id": "contractRepo",
+            "kind": "repository",
+            "title": "ContractRepository.findByApplicationId(appId)",
+            "subtitle": "Database boundary",
+            "meta": "table: contract_terms",
+            "tier": 3,
+            "row": -1
+          },
+          {
+            "id": "income",
+            "kind": "source",
+            "title": "VerifiedIncome.monthlyGrossIncome",
+            "subtitle": "Input to derivation",
+            "meta": "Income verification response",
+            "tier": 2,
+            "row": 1
+          },
+          {
+            "id": "incomeClient",
+            "kind": "external",
+            "title": "IncomeVerificationClient.verify(ssnHash)",
+            "subtitle": "External service boundary",
+            "meta": "service internals unavailable",
+            "tier": 3,
+            "row": 1
+          },
+          {
+            "id": "ssn",
+            "kind": "source",
+            "title": "Applicant.ssnHash",
+            "subtitle": "Client input",
+            "meta": "Applicant entity",
+            "tier": 4,
+            "row": 1
+          },
+          {
+            "id": "appRepo",
+            "kind": "repository",
+            "title": "ApplicantRepository.findPrimaryApplicant(appId)",
+            "subtitle": "Database boundary",
+            "meta": "table: applicant",
+            "tier": 5,
+            "row": 1
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "transform",
+            "computed by"
+          ],
+          [
+            "transform",
+            "payment",
+            "input"
+          ],
+          [
+            "payment",
+            "contractRepo",
+            "loaded by"
+          ],
+          [
+            "transform",
+            "income",
+            "input"
+          ],
+          [
+            "income",
+            "incomeClient",
+            "returned by"
+          ],
+          [
+            "incomeClient",
+            "ssn",
+            "called with"
+          ],
+          [
+            "ssn",
+            "appRepo",
+            "loaded by"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "vehicle.vin",
+      "confidence": "high",
+      "mappingType": "direct",
+      "description": "VIN is copied from the selected vehicle nested inside the contract aggregate.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "vehicle.setVin(contract.getVehicle().getVin())",
+            "subtitle": "Assignment",
+            "meta": "VehicleMapper.map(...) line 27",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "source",
+            "kind": "source",
+            "title": "Contract.vehicle.vin",
+            "subtitle": "Nested entity field",
+            "meta": "embedded vehicle object",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "repo",
+            "kind": "repository",
+            "title": "ContractRepository.findByApplicationId(appId)",
+            "subtitle": "Database boundary",
+            "meta": "table: contract_vehicle",
+            "tier": 2,
+            "row": 0
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "source",
+            "read from"
+          ],
+          [
+            "source",
+            "repo",
+            "loaded by"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "vehicle.displayName",
+      "confidence": "high",
+      "mappingType": "derived",
+      "description": "Display name is composed from vehicle year, make, and model. Each component is traced to the selected contract vehicle.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "vehicle.setDisplayName(formatVehicle(vehicle))",
+            "subtitle": "Assignment",
+            "meta": "VehicleMapper.map(...) line 31",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "transform",
+            "kind": "transform",
+            "title": "VehicleFormatter.format(year, make, model)",
+            "subtitle": "Transform",
+            "meta": "year + make + model",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "year",
+            "kind": "source",
+            "title": "Contract.vehicle.year",
+            "subtitle": "Input",
+            "meta": "Contract vehicle entity",
+            "tier": 2,
+            "row": -1
+          },
+          {
+            "id": "make",
+            "kind": "source",
+            "title": "Contract.vehicle.make",
+            "subtitle": "Input",
+            "meta": "Contract vehicle entity",
+            "tier": 2,
+            "row": 0
+          },
+          {
+            "id": "model",
+            "kind": "source",
+            "title": "Contract.vehicle.model",
+            "subtitle": "Input",
+            "meta": "Contract vehicle entity",
+            "tier": 2,
+            "row": 1
+          },
+          {
+            "id": "repo",
+            "kind": "repository",
+            "title": "ContractRepository.findByApplicationId(appId)",
+            "subtitle": "Database boundary",
+            "meta": "table: contract_vehicle",
+            "tier": 3,
+            "row": 0
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "transform",
+            "computed by"
+          ],
+          [
+            "transform",
+            "year",
+            "input"
+          ],
+          [
+            "transform",
+            "make",
+            "input"
+          ],
+          [
+            "transform",
+            "model",
+            "input"
+          ],
+          [
+            "year",
+            "repo",
+            "loaded by"
+          ],
+          [
+            "make",
+            "repo",
+            "loaded by"
+          ],
+          [
+            "model",
+            "repo",
+            "loaded by"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "decision.status",
+      "confidence": "medium",
+      "mappingType": "conditional",
+      "description": "Status is selected from the rules result with a manual-review override and a static fallback.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "decision.setStatus(resolveStatus(decision))",
+            "subtitle": "Assignment",
+            "meta": "DecisionMapper.map(...) line 51",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "transform",
+            "kind": "transform",
+            "title": "DecisionStatusResolver.resolveStatus(decision)",
+            "subtitle": "Conditional transform",
+            "meta": "manualReview overrides approval",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "status",
+            "kind": "external",
+            "title": "DecisionEngineResult.status",
+            "subtitle": "Rules engine boundary",
+            "meta": "opaque rule execution",
+            "tier": 2,
+            "row": -1
+          },
+          {
+            "id": "flag",
+            "kind": "source",
+            "title": "DecisionEngineResult.manualReviewRequired",
+            "subtitle": "Branch condition",
+            "meta": "rules result field",
+            "tier": 2,
+            "row": 0
+          },
+          {
+            "id": "fallback",
+            "kind": "constant",
+            "title": "DecisionStatus.REVIEW",
+            "subtitle": "Fallback value",
+            "meta": "static enum",
+            "tier": 2,
+            "row": 1
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "transform",
+            "computed by"
+          ],
+          [
+            "transform",
+            "status",
+            "primary input"
+          ],
+          [
+            "transform",
+            "flag",
+            "branch input"
+          ],
+          [
+            "transform",
+            "fallback",
+            "fallback"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "decision.reasons[].code",
+      "confidence": "high",
+      "mappingType": "direct-list",
+      "description": "Each reason code is copied directly from the rule engine result list item.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "reasonDto.setCode(reason.getCode())",
+            "subtitle": "List item assignment",
+            "meta": "DecisionReasonMapper.map(...) line 22",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "source",
+            "kind": "source",
+            "title": "DecisionEngineResult.reasons[].code",
+            "subtitle": "Input list item field",
+            "meta": "Rules result reason",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "rules",
+            "kind": "external",
+            "title": "DecisionEngine.execute(application)",
+            "subtitle": "Rules engine boundary",
+            "meta": "rule internals unavailable",
+            "tier": 2,
+            "row": 0
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "source",
+            "read from"
+          ],
+          [
+            "source",
+            "rules",
+            "produced by"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "decision.reasons[].text",
+      "confidence": "high",
+      "mappingType": "derived-list",
+      "description": "Message text is rendered by resolving a template and binding reason parameters for each list item.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "messages.add(buildMessage(reason))",
+            "subtitle": "Collection assignment",
+            "meta": "DecisionReasonMapper.mapReasons(...) line 39",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "transform",
+            "kind": "transform",
+            "title": "MessageTemplateRenderer.render(code, params)",
+            "subtitle": "Transform",
+            "meta": "template binding",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "code",
+            "kind": "source",
+            "title": "DecisionReason.code",
+            "subtitle": "Input to derivation",
+            "meta": "rules result reason",
+            "tier": 2,
+            "row": -1
+          },
+          {
+            "id": "template",
+            "kind": "repository",
+            "title": "MessageTemplateRepository.findByCode(code)",
+            "subtitle": "Config/DB boundary",
+            "meta": "table: message_template",
+            "tier": 3,
+            "row": -1
+          },
+          {
+            "id": "params",
+            "kind": "source",
+            "title": "DecisionReason.parameters",
+            "subtitle": "Input to derivation",
+            "meta": "rules result params",
+            "tier": 2,
+            "row": 1
+          },
+          {
+            "id": "rules",
+            "kind": "external",
+            "title": "DecisionEngineResult.reasons[]",
+            "subtitle": "Rules engine boundary",
+            "meta": "opaque rule execution",
+            "tier": 3,
+            "row": 1
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "transform",
+            "computed by"
+          ],
+          [
+            "transform",
+            "code",
+            "input"
+          ],
+          [
+            "code",
+            "template",
+            "loads template"
+          ],
+          [
+            "transform",
+            "params",
+            "input"
+          ],
+          [
+            "params",
+            "rules",
+            "from rules"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "dealer.dealerId",
+      "confidence": "high",
+      "mappingType": "direct",
+      "description": "Dealer id is copied from the contract aggregate.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "dealer.setDealerId(contract.getDealerId())",
+            "subtitle": "Assignment",
+            "meta": "DealerMapper.map(...) line 57",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "source",
+            "kind": "source",
+            "title": "Contract.dealerId",
+            "subtitle": "Entity field",
+            "meta": "Contract entity",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "repo",
+            "kind": "repository",
+            "title": "ContractRepository.findByApplicationId(appId)",
+            "subtitle": "Database boundary",
+            "meta": "table: contract",
+            "tier": 2,
+            "row": 0
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "source",
+            "read from"
+          ],
+          [
+            "source",
+            "repo",
+            "loaded by"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "dealer.callbackUrl",
+      "confidence": "high",
+      "mappingType": "lookup",
+      "description": "Callback URL is looked up from dealer configuration using dealer id from the contract.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "dealer.setCallbackUrl(config.callbackUrl())",
+            "subtitle": "Assignment",
+            "meta": "DealerMapper.map(...) line 62",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "lookup",
+            "kind": "method",
+            "title": "DealerConfigService.getDealerConfig(dealerId)",
+            "subtitle": "Lookup method",
+            "meta": "cache then repository",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "dealerId",
+            "kind": "source",
+            "title": "Contract.dealerId",
+            "subtitle": "Lookup key",
+            "meta": "Contract entity",
+            "tier": 2,
+            "row": -1
+          },
+          {
+            "id": "contractRepo",
+            "kind": "repository",
+            "title": "ContractRepository.findByApplicationId(appId)",
+            "subtitle": "Database boundary",
+            "meta": "table: contract",
+            "tier": 3,
+            "row": -1
+          },
+          {
+            "id": "dealerRepo",
+            "kind": "repository",
+            "title": "DealerConfigRepository.findByDealerId(dealerId)",
+            "subtitle": "Database boundary",
+            "meta": "table: dealer_config",
+            "tier": 2,
+            "row": 1
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "lookup",
+            "read from"
+          ],
+          [
+            "lookup",
+            "dealerId",
+            "uses key"
+          ],
+          [
+            "dealerId",
+            "contractRepo",
+            "loaded by"
+          ],
+          [
+            "lookup",
+            "dealerRepo",
+            "loaded by"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "riskBand",
+      "confidence": "medium",
+      "mappingType": "enriched",
+      "description": "Risk band is enriched from an external risk client. Inputs to the client are traced, but the scoring model is not available.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "request.setRiskBand(riskResult.band())",
+            "subtitle": "Assignment",
+            "meta": "RiskEnrichmentService.enrich(...) line 74",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "risk",
+            "kind": "external",
+            "title": "CreditRiskClient.score(applicant, contract)",
+            "subtitle": "External service boundary",
+            "meta": "model unavailable",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "applicant",
+            "kind": "source",
+            "title": "Applicant.id + ssnHash",
+            "subtitle": "Client input",
+            "meta": "Applicant entity",
+            "tier": 2,
+            "row": -1
+          },
+          {
+            "id": "appRepo",
+            "kind": "repository",
+            "title": "ApplicantRepository.findPrimaryApplicant(appId)",
+            "subtitle": "Database boundary",
+            "meta": "table: applicant",
+            "tier": 3,
+            "row": -1
+          },
+          {
+            "id": "amount",
+            "kind": "source",
+            "title": "Contract.amountFinanced",
+            "subtitle": "Client input",
+            "meta": "Contract entity",
+            "tier": 2,
+            "row": 1
+          },
+          {
+            "id": "contractRepo",
+            "kind": "repository",
+            "title": "ContractRepository.findByApplicationId(appId)",
+            "subtitle": "Database boundary",
+            "meta": "table: contract",
+            "tier": 3,
+            "row": 1
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "risk",
+            "returned by"
+          ],
+          [
+            "risk",
+            "applicant",
+            "input"
+          ],
+          [
+            "applicant",
+            "appRepo",
+            "loaded by"
+          ],
+          [
+            "risk",
+            "amount",
+            "input"
+          ],
+          [
+            "amount",
+            "contractRepo",
+            "loaded by"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "metadata.sourceSystem",
+      "confidence": "high",
+      "mappingType": "config",
+      "description": "Source system code comes from application configuration.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "metadata.setSourceSystem(vendorProperties.sourceSystem())",
+            "subtitle": "Assignment",
+            "meta": "MetadataMapper.map(...) line 21",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "props",
+            "kind": "config",
+            "title": "VendorProperties.sourceSystem",
+            "subtitle": "Spring configuration",
+            "meta": "@ConfigurationProperties",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "yaml",
+            "kind": "config",
+            "title": "application.yml: vendor.source-system",
+            "subtitle": "Config boundary",
+            "meta": "value: CONTRACTS",
+            "tier": 2,
+            "row": 0
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "props",
+            "read from"
+          ],
+          [
+            "props",
+            "yaml",
+            "bound from"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "metadata.sentAt",
+      "confidence": "high",
+      "mappingType": "runtime",
+      "description": "Timestamp generated at dispatch time using injected Clock.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "assign",
+            "kind": "assignment",
+            "title": "metadata.setSentAt(Instant.now(clock))",
+            "subtitle": "Assignment",
+            "meta": "MetadataMapper.map(...) line 24",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "clock",
+            "kind": "runtime",
+            "title": "Clock.systemUTC()",
+            "subtitle": "Runtime boundary",
+            "meta": "Spring bean Clock",
+            "tier": 1,
+            "row": 0
+          },
+          {
+            "id": "time",
+            "kind": "runtime",
+            "title": "current time",
+            "subtitle": "Runtime value",
+            "meta": "not backtraceable beyond process clock",
+            "tier": 2,
+            "row": 0
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "assign",
+            "assigned by"
+          ],
+          [
+            "assign",
+            "clock",
+            "uses"
+          ],
+          [
+            "clock",
+            "time",
+            "produces"
+          ]
+        ]
+      }
+    },
+    {
+      "path": "metadata.internalNotes",
+      "confidence": "low",
+      "mappingType": "dynamic",
+      "description": "Field exists on DTO but no explicit assignment was found. Dynamic BeanUtils mapping may populate it from a similarly named source property.",
+      "lineage": {
+        "nodes": [
+          {
+            "id": "unknown",
+            "kind": "unknown",
+            "title": "Potential BeanUtils.copyProperties(source, request)",
+            "subtitle": "Dynamic mapping risk",
+            "meta": "field-level source unresolved",
+            "tier": 0,
+            "row": 0
+          },
+          {
+            "id": "boundary",
+            "kind": "unknown",
+            "title": "Unknown / unresolved boundary",
+            "subtitle": "Unavailable evidence",
+            "meta": "needs structural search or runtime trace",
+            "tier": 1,
+            "row": 0
+          }
+        ],
+        "edges": [
+          [
+            "FIELD",
+            "unknown",
+            "possibly assigned by"
+          ],
+          [
+            "unknown",
+            "boundary",
+            "unresolved"
+          ]
+        ]
+      }
+    }
+  ],
+  "boundaries": [
+    {
+      "type": "event",
+      "title": "Kafka ApplicationApprovedEvent",
+      "description": "Inbound event boundary for applicationId and decision inputs",
+      "fields": [
+        "applicationId",
+        "decision.status"
+      ]
+    },
+    {
+      "type": "repository",
+      "title": "ContractRepository",
+      "description": "Database boundary for contract and financial terms",
+      "fields": [
+        "contractId",
+        "financialTerms.amountFinanced",
+        "financialTerms.monthlyPayment"
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "title": "Dynamic copy for metadata.internalNotes",
+      "severity": "medium",
+      "description": "BeanUtils.copyProperties may populate internalNotes dynamically; exact source unresolved.",
+      "fields": [
+        "metadata.internalNotes"
+      ]
+    }
+  ]
+}
