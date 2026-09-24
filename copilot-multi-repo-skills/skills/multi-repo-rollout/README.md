@@ -19,7 +19,8 @@ Subagents: `repo-worker` (parallel repo work) and `change-verifier` (independent
 Unzip into `~/.copilot` (Windows: `%USERPROFILE%\.copilot`): six folders under `skills/`, two files under
 `agents/`. Nothing else to set up. The skills use the Jira and Bitbucket/GitHub tools your Copilot already has.
 `mr` means `python3 $HOME/.copilot/skills/multi-repo-rollout/scripts/mr.py`; `mr doctor` checks Python 3.10+
-and Git, and `mr help` lists the commands.
+and Git, and `mr help` lists the commands. Agents are guided by [rules.md](rules.md) (the goal, the fixed
+rules, their room for judgement) and [commands.md](commands.md) (what each command does and how to check it).
 
 **Optional speed-up:** with `BITBUCKET_TOKEN` or `GITHUB_TOKEN` in your environment, scripts list repos and
 open or check PRs through the API directly: seconds per PR instead of an agent step. The server and its

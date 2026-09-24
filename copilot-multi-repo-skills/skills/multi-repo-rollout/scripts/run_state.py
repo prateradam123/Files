@@ -670,6 +670,30 @@ def retry(run, tid, evidence):
     return mutate(run, 'retry', change)
 
 
+def add_scope(run, repos_file, evidence):
+    """Add repos to a running rollout. They're discovered with `discover --pending`; their targets need
+    approval like any other."""
+    require(evidence.strip(), "Record the user's words asking for these repos")
+    rows = read_scope(repos_file)
+
+    def change(s):
+        have = {r['name'] for r in s['scope']['repos']}
+        new = [r for r in rows if r['name'] not in have]
+        s['scope']['repos'] += new
+        s.setdefault('scope_changes', []).append({'at': now(), 'added': [r['name'] for r in new], 'evidence': evidence})
+        return {'added': [r['name'] for r in new], 'already_in_scope': len(rows) - len(new),
+                'next': f"mr discover --run {s['run_id']} --pending, then mr plan"}
+    return mutate(run, 'scope_added', change)
+
+
+def add_override(run, tid, status, evidence):
+    def change(s):
+        target_for(s, tid)
+        s.setdefault('overrides', []).append({'at': now(), 'target': tid, 'status': status, 'evidence': evidence})
+        return {'target': tid, 'status': status}
+    return mutate(run, 'override', change)
+
+
 def set_branch_format(run, fmt):
     def change(s):
         s['branch_format'] = fmt
@@ -881,6 +905,9 @@ def report(run):
               '', f"**Bottleneck:** {perf['bottleneck']}"]
     L += ['', f"Elapsed since start: {(datetime.now(timezone.utc) - created).total_seconds() / 60:.1f} min "
               '(includes waiting on people and CI)']
+    if s.get('overrides'):
+        L += ['', '## Overrides of the check (user-approved)', '']
+        L += [f"- `{o['target']}` → {o['status']}: {md(o['evidence'])} ({o['at'][:16]})" for o in s['overrides']]
     if s['lessons']:
         L += ['', '## Lessons', ''] + [f"- {md(n.get('target'))}: {md(n['text'])}" for n in s['lessons']]
     (Path(run) / 'report.md').write_text('\n'.join(L) + '\n')
@@ -894,7 +921,7 @@ def report(run):
             'needs_approval': {'count': len(needs), 'first': needs[:10]},
             'stopped': [{'count': len(g), 'reason': g[0]['reason'][:220], 'targets': [x['target'] for x in g][:8]}
                         for g in grouped(stopped, lambda x: x['reason'])],
-            'open_questions': len(openq)}
+            'open_questions': len(openq), 'overrides': len(s.get('overrides', []))}
 
 
 # ---------------------------------------------------------------- CLI
@@ -972,6 +999,9 @@ def main():
     q.add_argument('--all', action='store_true')
     q.add_argument('--evidence', required=True)
     cmd('report', 'Write report.md and jira-table.md; print what needs attention')
+    q = cmd('scope', 'Add repos to a running rollout')
+    q.add_argument('--add', required=True, help='file of "<name> <clone-url>" lines')
+    q.add_argument('--evidence', required=True, help="the user's words")
     cmd('show', 'Print the manifest')
     sub.add_parser('list', help='List runs').add_argument('--root')
     a = p.parse_args()
@@ -1010,6 +1040,8 @@ def main():
             o = abort(a.run, a.targets, a.evidence, a.all)
         elif c == 'report':
             o = report(a.run)
+        elif c == 'scope':
+            o = add_scope(a.run, a.add, a.evidence)
         elif c == 'show':
             o = load(a.run)
         else:

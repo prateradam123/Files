@@ -5,7 +5,11 @@ description: Check and look after the PRs a rollout opened - CI status, reviews,
 
 # PR follow-through
 
-Follow [rules.md](../multi-repo-rollout/rules.md), which also says what `mr` means. Default is **read-only**; fixes
+**Goal:** Every PR ends merged or deliberately closed, with an accurate status on the ticket, and nothing is changed without the user asking.
+
+**How:** [rules.md](../multi-repo-rollout/rules.md) has the overall goal, the fixed rules, and the room you have for judgement. [commands.md](../multi-repo-rollout/commands.md) says what each `mr` command does and how to check it. Use any tool for reading, editing, building and investigating. The steps below are the default path: adapt them when the situation calls for it, and say why.
+
+Default is **read-only**; fixes
 happen only when the user asks in this conversation.
 
 **For a rollout run,** find it with `mr runs` and record what you observe (below). **For any other PRs**

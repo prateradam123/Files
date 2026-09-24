@@ -5,8 +5,12 @@ description: Turn a change request or Jira card into a tested recipe (recipe.md 
 
 # Recipe authoring
 
+**Goal:** A recipe that finds exactly the branches that need the change (no misses, no false alarms) and makes exactly the change the user wants, proven on real repos before any rollout.
+
+**How:** [rules.md](../multi-repo-rollout/rules.md) has the overall goal, the fixed rules, and the room you have for judgement. [commands.md](../multi-repo-rollout/commands.md) says what each `mr` command does and how to check it. Use any tool for reading, editing, building and investigating. The steps below are the default path: adapt them when the situation calls for it, and say why.
+
 Output: a folder `~/.multi-repo/recipes/<slug>/` that passes a trial on real repos, plus the request that
-starts the rollout. Follow [rules.md](../multi-repo-rollout/rules.md), which also says what `mr` means.
+starts the rollout.
 Template: [recipe-template.md](../multi-repo-rollout/examples/recipe-template.md). A complete example:
 [disable-feature-builds](../multi-repo-rollout/examples/disable-feature-builds/recipe.md).
 

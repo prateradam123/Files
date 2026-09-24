@@ -427,13 +427,26 @@ def decide(run, tid, status, evidence):
         ensure_worktree(clone, wt, src, e['observed_sha'],
                         {'run': run, 'target': tid, 'repo': d['repo'], 'jira_key': s['jira']['key'],
                          'source_branch': src, 'destination': e['branch'], 'run_dir': run})
-        tmp = {**e, **upd, 'worktree': str(wt), 'source_branch': src, 'implementation': 'agent'}
+        impl = 'agent'
+        if recipe_meta(recipe_dir)['mode'] == 'scripted' and find_script(recipe_dir, 'apply'):
+            out, err = run_apply(recipe_dir, wt, {'TARGET_REPO': d['repo'], 'TARGET_BRANCH': e['branch']})
+            if not err and (out or {}).get('changed'):
+                impl = 'script'  # the recipe's own script could make the change: no agent edit needed
+        tmp = {**e, **upd, 'worktree': str(wt), 'source_branch': src, 'implementation': impl}
         capture_into(run, tmp, recipe_dir, wt)
         upd = {k: tmp[k] for k in tmp if k not in e or tmp[k] != e.get(k)}
     with edit_discovery(run, d['repo'], clone=clone) as fresh:
         cur = next(x for x in fresh['targets'] if x['id'] == tid)
         cur.update(upd)
     return {'target': tid, 'status': status}
+
+
+def override(run, tid, status, evidence):
+    """Correct the check's verdict for one target, only with the user's approval. Always reported."""
+    require(evidence and evidence.strip(), "Record the user's words that approve this override (--evidence)")
+    out = decide(run, tid, status, 'OVERRIDE approved by the user: ' + evidence)
+    run_state.add_override(run, tid, status, evidence)
+    return {**out, 'override': True, 'next': 'mr plan --run <run-id> ...'}
 
 
 def capture(run, tid):
@@ -1563,6 +1576,11 @@ def main():
     q.add_argument('--no-apply', action='store_true')
     q.add_argument('--verbose', action='store_true', help='print every repo and branch (default: a summary)')
     q.add_argument('--full', action='store_true', help='check every branch on a full checkout (no sparse checks)')
+    q = s.add_parser('override', help="Correct the check's verdict for one target (user-approved; reported)")
+    q.add_argument('--run', required=True)
+    q.add_argument('--target', required=True)
+    q.add_argument('--status', required=True, choices=['needs_change', 'compliant', 'not_applicable'])
+    q.add_argument('--evidence', required=True, help="the user's words approving the override")
     q = s.add_parser('capture', help="Record a target worktree's diff after an agent edit")
     q.add_argument('--run', required=True)
     q.add_argument('--target', required=True)
@@ -1624,6 +1642,8 @@ def main():
             o = clean(a.run, a.clones_days, a.all)
         elif a.cmd == 'capture':
             o = capture(a.run, a.target)
+        elif a.cmd == 'override':
+            o = override(a.run, a.target, a.status, a.evidence)
         elif a.cmd == 'decide':
             o = decide(a.run, a.target, a.status, a.evidence)
         elif a.cmd == 'deliver':

@@ -5,8 +5,11 @@ description: Answer a question across many repos and branches quickly and read-o
 
 # Repo scan
 
-Read-only. Nothing is committed, pushed or opened, and no run or Jira card is needed. Commands: see
-[rules.md](../multi-repo-rollout/rules.md) for what `mr` means.
+**Goal:** Answer the user's question accurately for every branch in scope, and say clearly what was and wasn't looked at.
+
+**How:** [rules.md](../multi-repo-rollout/rules.md) has the overall goal, the fixed rules, and the room you have for judgement. [commands.md](../multi-repo-rollout/commands.md) says what each `mr` command does and how to check it. Use any tool for reading, editing, building and investigating. The steps below are the default path: adapt them when the situation calls for it, and say why.
+
+Read-only. Nothing is committed, pushed or opened, and no run or Jira card is needed.
 
 ## 1. The scope
 

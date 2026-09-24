@@ -5,7 +5,11 @@ description: Decide whether a change is really verified in a repo - run the rele
 
 # Change verification
 
-Follow [rules.md](../multi-repo-rollout/rules.md), which also says what `mr` means. Verification never
+**Goal:** A verdict the user can trust: does the change work, and if something fails, is it the change or was it already broken?
+
+**How:** [rules.md](../multi-repo-rollout/rules.md) has the overall goal, the fixed rules, and the room you have for judgement. [commands.md](../multi-repo-rollout/commands.md) says what each `mr` command does and how to check it. Use any tool for reading, editing, building and investigating. The steps below are the default path: adapt them when the situation calls for it, and say why.
+
+Verification never
 commits or pushes anything.
 
 ## Verified means all of these, on the exact change

@@ -5,7 +5,11 @@ description: After a rollout (or when one stalls), turn what happened into small
 
 # Run retro
 
-Follow [rules.md](../multi-repo-rollout/rules.md), which also says what `mr` means. `RUN` is
+**Goal:** Make the next run better: turn what happened into small, evidence-backed improvements the user approves.
+
+**How:** [rules.md](../multi-repo-rollout/rules.md) has the overall goal, the fixed rules, and the room you have for judgement. [commands.md](../multi-repo-rollout/commands.md) says what each `mr` command does and how to check it. Use any tool for reading, editing, building and investigating. The steps below are the default path: adapt them when the situation calls for it, and say why.
+
+`RUN` is
 `~/.multi-repo/runs/<run-id>`. You propose changes; you apply only the ones the user approves.
 
 ## 1. Gather

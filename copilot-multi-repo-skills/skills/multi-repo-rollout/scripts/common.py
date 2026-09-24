@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 TOOLKIT = Path(__file__).resolve().parents[1]   # the multi-repo-rollout skill folder
-VERSION = '4.0.0'
+VERSION = '4.2.0'
 DEFAULT_CONFIG = {  # optional: ~/.multi-repo/config.json only needs keys you want to change
     'recipes_dir': None,        # default: <home>/recipes. Point at a shared Git checkout to share recipes.
     'branch_format': 'feature/{key}-{recipe}',

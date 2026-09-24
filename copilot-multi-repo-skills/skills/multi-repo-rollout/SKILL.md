@@ -5,8 +5,11 @@ description: Run a recipe across many repos in parallel and open one PR per repo
 
 # Multi-repo rollout
 
-You're the coordinator: you talk to the user, run the commands, and launch workers. Follow
-[rules.md](rules.md), which also says what `mr` means.
+**Goal:** Every branch in scope that needs the change gets exactly the approved change as its own PR, pilots first. Nothing is missed silently, and nothing is pushed unapproved.
+
+**How:** [rules.md](rules.md) has the overall goal, the fixed rules, and the room you have for judgement. [commands.md](commands.md) says what each `mr` command does and how to check it. Use any tool for reading, editing, building and investigating. The steps below are the default path: adapt them when the situation calls for it, and say why.
+
+You're the coordinator: you talk to the user, run the commands, and launch workers. 
 
 ## 1. Start (or resume)
 
@@ -140,6 +143,17 @@ after the pilot, when all PRs are open, and on request. Tell the user:
 `mr revise --run <run-id> --recipe <name> --evidence "<what was wrong>"`, `mr discover --run <run-id> --pending ...`
 and `mr plan`. Unchanged scripted diffs stay approved; changed ones need approval, and those with a PR get
 a follow-up commit.
+
+**More repos:** `mr scope --run <run-id> --add <file> --evidence "<their words>"`, then `mr discover --run <run-id> --pending`
+and `mr plan`. The new targets need approval like any other.
+
+**The check got one target wrong** (you're sure after reading the repo): show the user the evidence. Only
+with their agreement run `mr override --run <run-id> --target <id> --status <needs_change|compliant|not_applicable>
+--evidence "<their words>"`, then `mr plan`. It always shows in the report. If several targets are wrong,
+fix the recipe instead (above).
+
+**Something the rollout can't do** (create a branch, change repo or CI settings, land several repos at
+once): tell the user in one line and ask whether they'll do it or you should, with your tools.
 
 **Stop targets (only when the user asks):**
 `mr abort --run <run-id> --targets <ids> --evidence "<their words>"`. Then

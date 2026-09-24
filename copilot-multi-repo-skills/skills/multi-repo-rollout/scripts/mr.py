@@ -31,6 +31,8 @@ GROUPS = [
         ('approve', 'run_state', 'approve', 'Record the user\'s approval (pilots with --pilot)'),
         ('take', 'run_state', 'take', 'Next ready items; --worker claims them'),
         ('decide', 'recipe_run', 'decide', 'Record a judgement on an undecided target'),
+        ('override', 'recipe_run', 'override', "Correct the check's verdict for one target (user-approved)"),
+        ('scope', 'run_state', 'scope', 'Add repos to a running rollout'),
         ('capture', 'recipe_run', 'capture', 'Record a worktree diff after an agent edit'),
         ('deliver', 'recipe_run', 'deliver', 'Check, build, commit, push (--dry: check and build only)'),
         ('build', 'recipe_run', 'build', 'Run a build in a worktree or on an unchanged commit'),
