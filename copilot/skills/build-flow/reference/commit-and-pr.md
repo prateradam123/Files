@@ -27,7 +27,7 @@ Note: Event order follows outbox id, not timestamp.
 | `--what` | How it works. Only when the subject does not already say it. |
 | `--touches` | Exact names someone in another repo or team would search for: topics, tables, config keys, endpoints, schema names. Comma separated. Leave it out when the commit has none. Class names do not belong here. |
 | `--note` | One catch that is not obvious from the code. Optional. |
-| `--mechanical` | Use in place of `--why` for a commit that changes no behavior: a rename or formatting. Subject only. A change to the text of a log line or a message is not mechanical, because someone may search for it: give `--why`. |
+| `--mechanical` | Use in place of `--why` for a commit that changes no behavior: a rename or formatting. Subject only. A comment-only change is mechanical. A change to the text of a log line or a message is not, because someone may search for it: give `--why`. |
 
 For the closing slice, give `--why` as the criteria it proves end to end: `--why 'Proves AC1 and AC2 through the wired service.'`
 
@@ -45,7 +45,7 @@ One pull request per repo, opened as a draft, from the feature branch into the b
 
 1. `push` pushes the feature branch. It never forces.
 2. `pr-body` writes the description to a file in the working folder and prints the title.
-3. Read the description. It is your file to edit: tighten the wording where a commit subject reads badly as a bullet, give a fix commit its reason, and keep the four sections. Until the PR is open, running `pr-body` again rewrites the file.
+3. Read the description. It is your file to edit: tighten the wording where a commit subject reads badly as a bullet, give a fix commit its reason, remove a note that a later slice made untrue, and keep the four sections. Until the PR is open, running `pr-body` again rewrites the file.
 4. Open the draft PR with that title and file.
 5. `pr-opened --url <the PR link>`.
 

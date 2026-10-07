@@ -595,8 +595,8 @@ const IC = s => '<span class="ic ' + s + '"></span>';
 const sec = (t, b) => b ? '<div class="dsec"><h3>' + t + "</h3>" + b + "</div>" : "";
 const plural = (n, w) => n + " " + (n === 1 ? w : w === "criterion" ? "criteria" : w === "fix" ? "fixes" : w + "s");
 const link = (url, text, cls) => /^https?:\/\//.test(url || "") ? '<a' + (cls ? ' class="' + cls + '"' : "") + ' href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(text) + "</a>" : (cls ? '<span class="' + cls + '">' + esc(text) + "</span>" : esc(text));
-const SL = {intake:"Read the card and the code", interview:"Questions for you", plan:"Draft the plan", approval:"Your approval", build:"Build", self_check:"Self-check", closing:"Closing tests", review:"Full suite", pr:"Pull request"};
-const DESC = {intake:"The agent reads the card and the code the change depends on.", interview:"Only the decisions the card and the code could not answer.", plan:"Slices with a named check each, tied to the acceptance criteria.", approval:"You read the plan and approve it in chat. No code is written before that.", self_check:"One pass over the whole diff for logging, error handling, missing values, config and the repo's coding instructions. Gaps are fixed on the spot.", closing:"Component tests that prove the criteria end to end.", review:"The whole test suite runs on the committed code.", pr:"The branch is pushed, a draft PR is opened, and CI is seen through to green.", you:"The PRs are yours to review. Each also needs an approval from someone else."};
+const SL = {intake:"Read the card and the code", interview:"Questions for you", plan:"Draft the plan", plan_review:"Plan review", approval:"Your approval", build:"Build", self_check:"Self-check", closing:"Closing tests", code_review:"Review", review:"Full suite", pr:"Pull request"};
+const DESC = {intake:"The agent reads the card and the code the change depends on.", interview:"Only the decisions the card and the code could not answer.", plan:"Slices with a named check each, tied to the acceptance criteria.", plan_review:"A separate reviewer agent, which did not write the plan, checks that it will work before it comes to you.", approval:"You read the plan and approve it in chat. No code is written before that.", code_review:"Reviewer agents that did not write the code each read the change on one axis. Findings that stand are fixed before the full suite runs.", self_check:"One pass over the whole diff for logging, error handling, missing values, config and the repo's coding instructions. Gaps are fixed on the spot.", closing:"Component tests that prove the criteria end to end.", review:"The whole test suite runs on the committed code.", pr:"The branch is pushed, a draft PR is opened, and CI is seen through to green.", you:"The PRs are yours to review. Each also needs an approval from someone else."};
 const KIND = {insight:"Insight", issue_fix:"Issue and fix", command:"Command", correction:"Correction", went_well:"Went well", check_failed_again:"Check failed again"};
 
 // ---------------------------------------------------------------- data
@@ -629,7 +629,7 @@ function startDemo() {
 // ---------------------------------------------------------------- reduce the log into a state
 function reduce(events, nowT) {
   const st = {stg:{}, now:"", questions:[], answered:[], approvalWait:null, waitSecs:0, waitSince:null, slices:{}, closing:{}, repos:[], notes:{}, con:[], plan:null, planRev:0,
-    changes:[], commits:[], prlist:[], checks:{}, reqs:[], selfc:{}, finds:{}, prs:null, ended:false, last:0, lastT:"", ctx:SK("intake"), sliceRev:{}, pushed:{}, noticed:[]};
+    changes:[], commits:[], prlist:[], checks:{}, reqs:[], selfc:{}, finds:{}, revfinds:{}, revplan:{}, revdone:{}, planrev:null, agents:[], prs:null, ended:false, last:0, lastT:"", ctx:SK("intake"), sliceRev:{}, pushed:{}, noticed:[]};
   if (!events.length) return st;
   const T0 = Date.parse(events[0].t) / 1000;
   const C = (e, text, cls, key) => st.con.push({t:e.t, text:text, cls:cls || "", key:key || st.ctx});
@@ -650,7 +650,7 @@ function reduce(events, nowT) {
           if (g.state !== "in_progress") { g.runs = (g.runs || 0) + 1; if (g.start == null || g.state === "done") g.start = s; }
           g.state = "in_progress"; g.end = null;
           if (name !== "build") st.ctx = k;
-          if (e.reopened) { ["self_check", "review"].forEach(n2 => { const g2 = st.stg[SK(n2, e.repo)]; if (g2 && g2.state === "done") { g2.state = "todo"; g2.redo = true; } }); const gp = st.stg[SK("pr", e.repo)]; if (gp && gp.state === "done") gp.state = "in_progress"; C(e, "↺ " + e.repo + " is back in its build stage for a new slice", "warn", k); }
+          if (e.reopened) { ["self_check", "code_review", "review"].forEach(n2 => { const g2 = st.stg[SK(n2, e.repo)]; if (g2 && g2.state === "done") { g2.state = "todo"; g2.redo = true; } }); const gp = st.stg[SK("pr", e.repo)]; if (gp && gp.state === "done") gp.state = "in_progress"; C(e, "↺ " + e.repo + " is back in its build stage for a new slice", "warn", k); }
           else C(e, "▶ " + lab, "", k);
         }
       }
@@ -694,6 +694,11 @@ function reduce(events, nowT) {
       }
       else if (e.type === "selfcheck") { st.selfc[SK("self_check", e.repo)] = e; }
       else if (e.type === "event") { C(e, "✕ " + e.text, "bad"); N(st.ctx, {label:KIND[e.kind] || cap(String(e.kind || "").replace(/_/g, " ")), text:e.text, cls:"f"}); }
+      else if (e.type === "finding" && e.review) { const k = SK("code_review", e.repo); (st.revfinds[k] || (st.revfinds[k] = [])).push(Object.assign({}, e)); C(e, "! Review, " + e.severity + ": " + e.text, e.severity === "minor" ? "" : "warn", k); }
+      else if (e.type === "review_plan") { const k = SK("code_review", e.repo); st.revplan[k] = e; delete st.revdone[k]; st.revfinds[k] = (st.revfinds[k] || []).map(f => Object.assign(f, {earlier:true})); C(e, "◇ Reviewers launched: " + (e.axes || []).filter(a => a[2]).map(a => a[1]).join(", "), "", k); }
+      else if (e.type === "review") { const k = SK("code_review", e.repo); st.revdone[k] = e; C(e, "◇ Review done: " + plural(e.findings || 0, "finding") + (e.fixed ? ", " + e.fixed + " fixed" : ""), "ok", k); }
+      else if (e.type === "plan_review") { st.planrev = e; C(e, "◇ Plan review: " + plural((e.issues || []).length, "issue"), "", SK("plan_review")); }
+      else if (e.type === "agent") { if (e.state === "start") { st.agents.push({n:e.n, role:e.role, task:e.task, why:e.why, key:st.ctx, start:s}); C(e, "◇ " + cap(e.role) + " launched: " + e.task, "dim"); } else { const g = st.agents.find(x => x.n === e.n); if (g) { g.takeaway = e.takeaway; g.end = s; } C(e, "◇ " + cap(e.role) + " " + e.n + " found: " + e.takeaway, "dim", g ? g.key : null); } }
       else if (e.type === "finding") { { const f = Object.assign({}, e); (st.finds[st.ctx] || (st.finds[st.ctx] = [])).push(f); st.noticed.push(f); } C(e, "! Noticed: " + e.text, "warn"); }
       else if (e.type === "learning") { C(e, "✎ " + (KIND[e.kind] || e.kind) + ": " + e.text, "dim"); N(st.ctx, {label:KIND[e.kind] || cap(e.kind), text:e.text, scope:e.scope}); }
       else if (e.type === "pushed") { st.pushed[e.repo] = e.commit; C(e, "⇡ Pushed " + e.commit + " to origin/" + e.branch, "", SK("pr", e.repo)); }
@@ -719,13 +724,14 @@ function buildTree(st) {
   const revChange = {}; st.reqs.forEach(q => { if (q.rev) revChange[q.rev] = q.id; });
   const changeOf = x => revChange[st.sliceRev[x.repo + ":" + x.n]];
   const groups = [];
-  const pk = [stage("intake")]; if (st.stg[SK("interview")]) pk.push(stage("interview")); pk.push(stage("plan"), stage("approval"));
+  const pk = [stage("intake")]; if (st.stg[SK("interview")]) pk.push(stage("interview")); pk.push(stage("plan")); if (st.stg[SK("plan_review")]) pk.push(stage("plan_review")); pk.push(stage("approval"));
   groups.push({key:"g:plan", label:"Plan", side:"in chat", kids:pk});
   st.repos.forEach(r => { const ss = (st.slices[r] || []).filter(x => !changeOf(x)), kids = ss.map(slice); kids.push(stage("self_check", r));
     if (st.closing[r]) { const c = stage("closing", r, st.closing[r].title); if (c.state === "in_progress" && failing(c.key)) c.state = "failed"; c.hash = st.closing[r].commit; c.url = st.closing[r].url; kids.push(c); }
+    if (needsReview(st) || st.stg[SK("code_review", r)]) kids.push(stage("code_review", r));
     kids.push(stage("review", r));
     groups.push({key:"g:" + r, label:r, repo:r, side:ss.filter(x => x.state === "done").length + "/" + ss.length + " slices", kids:kids}); });
-  if (!st.repos.length) groups.push({key:"g:build", label:"Build", side:"once per repo", kids:[{key:"x1", label:"Slices, self-check, closing tests, full suite", state:"todo"}]});
+  if (!st.repos.length) groups.push({key:"g:build", label:"Build", side:"once per repo", kids:[{key:"x1", label:"Slices, self-check, closing tests, review, full suite", state:"todo"}]});
   groups.push({key:"g:fin", label:"Finish", side:"", kids:(st.repos.length ? st.repos : [null]).map(r => stage("pr", r, st.repos.length > 1 ? "Pull request for " + r : "Pull request")).concat([{key:"you", label:"Your PR review", state:st.prs ? "wait" : "todo"}])});
   st.reqs.forEach(q => { const added = []; st.repos.forEach(r => (st.slices[r] || []).forEach(x => { if (changeOf(x) === q.id) { const n = slice(x); n.label = (st.repos.length > 1 ? r + ": " : "") + x.title; added.push(n); } }));
     const settled = q.agreed != null || q.tweaks || q.done != null;
@@ -741,6 +747,7 @@ function buildTree(st) {
 }
 
 // ---------------------------------------------------------------- step details
+function needsReview(st) { const P = st.plan; return !!P && (P.work !== "trivial" || P.risk === "high"); }
 function validHtml(cmds, runs) {
   return cmds.map(cmd => { const rs = runs.filter(c => c.command === cmd), c = rs[rs.length - 1];
     const res = !c ? "Not run yet" : c.timed_out ? "Timed out after " + c.secs + " s" : (c.ok === false && !c.failed && !c.passed ? "Failed before any test ran (" + (c.reason || "error") + ") after " + c.secs + " s" : (c.ok === false ? "Failing: " : "Passing: ") + c.passed + " passed, " + c.failed + " failed in " + c.secs + " s" + (c.ok === false && !c.failed && c.reason ? " (" + c.reason + ")" : "")) + (rs.length > 1 ? ", attempt " + rs.length : "");
@@ -765,6 +772,15 @@ function detailHtml(st, key) {
     if (name === "intake") h += sec("Card", "<p>" + link(st.cardUrl, st.card || "") + " " + esc(st.title || "") + "</p>");
     if (name === "interview" || name === "intake") { const qs = st.answered.concat(st.questions).filter(q => q.key === key || name === "interview"); if (name === "interview" && qs.length) h += sec("Questions", qs.map(qaHtml).join("")); }
     if (name === "plan" && P) h += sec("Draft", "<p>Version " + st.planRev + ": " + plural((P.criteria || []).length, "criterion") + ", " + plural(st.repos.reduce((a, r) => a + (st.slices[r] || []).length + (st.closing[r] ? 1 : 0), 0), "slice") + " in " + plural(st.repos.length, "repo") + ".</p>");
+    if (name === "plan_review") { const pr = st.planrev;
+      if (pr) h += sec("What the reviewer found", (pr.depth === "full" ? "<p>It checked the plan against the card and the code.</p>" : "<p>It checked the plan against the card.</p>") + ((pr.issues || []).length ? pr.issues.map(it => '<div class="nt"><b>' + esc(it[0]) + "</b><br><span>" + (it[1] === "fixed" ? "Fixed in the plan." : "Kept as it was: " + esc(it[2])) + "</span></div>").join("") : "<p>No issues.</p>"));
+      else if (g.state === "in_progress") h += sec("Status", "<p>The reviewer is reading the plan.</p>"); }
+    if (name === "code_review") { const rp2 = st.revplan[key], rd = st.revdone[key], fs = (st.revfinds[key] || []);
+      if (rp2) { const takes = {}; ((rd || {}).axes || []).forEach(a => { takes[a[0]] = a[2]; }); const ran = (rp2.axes || []).filter(a => a[2]), skipped = (rp2.axes || []).filter(a => !a[2]);
+        h += sec("Reviewers (" + ran.length + ")", ran.map(a => '<div class="nt"><b>' + esc(a[1]) + "</b>" + (rd ? "" : '<span class="chip">reading</span>') + "<br><span>" + esc(rd ? takes[a[0]] || "" : "Why: " + a[3]) + "</span></div>").join("") +
+          (skipped.length ? '<p class="lead" style="margin:6px 0 0">Not needed for this change: ' + skipped.map(a => esc(a[1])).join(", ") + ".</p>" : "")); }
+      if (fs.length) h += sec("Findings (" + fs.length + ")", fs.map(f => '<div class="nt"><b>' + esc(cap(f.severity)) + '</b><span class="chip">' + esc(String(f.outcome || "").split(/[.:]/)[0]) + "</span><br>" + esc(f.text) + (f.where ? '<br><span class="mono">' + esc(f.where) + "</span>" : "") + "<br><span>" + esc(f.caught_by || "") + (String(f.outcome || "").indexOf(":") > 0 ? ". " + esc(String(f.outcome).slice(String(f.outcome).indexOf(":") + 2)) : "") + "</span></div>").join(""));
+      else if (rd) h += sec("Findings", "<p>No finding stood." + (rd.dropped ? " " + rd.dropped + " dropped because the quoted code was not there." : "") + "</p>"); }
     if (name === "approval") h += sec("Status", "<p>" + (st.approved ? "Approved at " + clock(st.approved.t) + ". You said: " + esc(st.approved.text) : st.approvalWait ? "Waiting for you to approve the plan in chat." : "Not reached yet.") + "</p>");
     if (name === "pr") { const q = st.prlist.find(x => x.repo === repo) || (st.prlist.length === 1 && !repo ? st.prlist[0] : null); if (q) h += sec("Pull request", "<p>" + link(q.url, q.id || "PR", "hash") + " " + esc(q.repo) + "</p>"); if (g.ci) h += sec("CI result", "<p>" + esc(g.ci) + "</p>"); }
     if (name === "you" && st.prlist.length) h += sec("Pull requests", st.prlist.map(q => '<div class="nt">' + link(q.url, q.id || "PR", "hash") + " <b>" + esc(q.repo) + "</b>" + (st.prlist.length > 1 ? " <span>merge " + (q.order === 1 ? "first" : "after the one above") + "</span>" : "") + "</div>").join(""));
@@ -773,6 +789,8 @@ function detailHtml(st, key) {
       if (accepted.length) h += sec("Gaps you accepted", accepted.map(it => '<div class="nt"><b>' + esc(it[0]) + "</b><br><span>" + esc(it[2]) + "</span></div>").join(""));
       if (sc.log_success || sc.log_failure) h += sec("Log lines the new code writes", [sc.log_success, sc.log_failure].filter(Boolean).map(l => '<div class="cmd">' + esc(l) + "</div>").join("")); }
   }
+  const ags = st.agents.filter(g => g.key === key);
+  if (ags.length) h += sec("Subagents (" + ags.length + ")", ags.map(g => '<div class="nt"><b>' + esc(cap(g.role)) + ": " + esc(g.task) + "</b>" + (g.takeaway ? "" : '<span class="chip">working</span>') + "<br><span>" + esc(g.takeaway ? g.takeaway : g.why ? "Why: " + g.why : "") + "</span></div>").join(""));
   const runs = st.checks[key] || [];
   if (!cmds.length) cmds = runs.map(c => c.command).filter((c, i, a) => a.indexOf(c) === i);
   if (cmds.length) h += sec("Validated by" + (cmds.length > 1 ? " (" + cmds.length + " checks)" : ""), validHtml(cmds, runs));
@@ -821,14 +839,14 @@ function render() {
   // one track per top-level stage: the plan, each repo, the finish, and each change
   const tracks = [], ag = st.stg[SK("approval")] || {};
   tracks.push({key:"plan", name:"Plan", small:"in chat", state:appr ? "done" : "in_progress", side:appr ? "Approved at " + clock(st.approved ? st.approved.t : "") : "In progress",
-    steps:[[S(SK("intake")), "Read"]].concat(st.stg[SK("interview")] ? [[S(SK("interview")), "Questions"]] : []).concat([[S(SK("plan")), "Plan"], [S(SK("approval")), "Approve"]]), cap:!appr && curNode ? curNode.label : ""});
+    steps:[[S(SK("intake")), "Read"]].concat(st.stg[SK("interview")] ? [[S(SK("interview")), "Questions"]] : []).concat([[S(SK("plan")), "Plan"]]).concat(st.stg[SK("plan_review")] ? [[S(SK("plan_review")), "Check"]] : []).concat([[S(SK("approval")), "Approve"]]), cap:!appr && curNode ? curNode.label : ""});
   repos.forEach(r => { const ss = st.slices[r] || [], g = tree.groups.find(x => x.repo === r), cur = curGroup === g ? curNode : null;
-    const fixes = nfix(SK("self_check", r)) + nfix(SK("review", r)), base = ((P.repos || []).find(x => x.repo === r) || {}).base, i = cur && cur.key.indexOf("slice:") === 0 ? +cur.key.split(":")[2] : 0;
+    const fixes = nfix(SK("self_check", r)) + nfix(SK("code_review", r)) + nfix(SK("review", r)), base = ((P.repos || []).find(x => x.repo === r) || {}).base, i = cur && cur.key.indexOf("slice:") === 0 ? +cur.key.split(":")[2] : 0;
     const building = ss.some(x => x.state === "in_progress") || S(SK("build", r)) === "in_progress", gstate = building && g.state === "done" ? "in_progress" : g.state;
     const anyAct = ss.some(x => x.state !== "todo") || S(SK("build", r)) !== "todo";
     tracks.push({key:"r:" + r, name:r, small:base ? "from " + base : "", state:g.state === "todo" && anyAct ? "in_progress" : gstate,
       side:g.state === "done" && !building ? "Done in " + tf(g.secs) + (fixes ? ", " + plural(fixes, "fix") : "") : !anyAct ? "Not started" : "In progress, " + tf(g.secs),
-      steps:[[S(SK("build", r)), "Build"], [S(SK("self_check", r)), "Self-check" + fx(SK("self_check", r))]].concat(st.closing[r] ? [[S(SK("closing", r)), "Tests"]] : []).concat([[S(SK("review", r)), "Full suite" + fx(SK("review", r))]]),
+      steps:[[S(SK("build", r)), "Build"], [S(SK("self_check", r)), "Self-check" + fx(SK("self_check", r))]].concat(st.closing[r] ? [[S(SK("closing", r)), "Tests"]] : []).concat(needsReview(st) || st.stg[SK("code_review", r)] ? [[S(SK("code_review", r)), "Review" + fx(SK("code_review", r))]] : []).concat([[S(SK("review", r)), "Full suite" + fx(SK("review", r))]]),
       cap:cur && !st.prs ? (i ? "Slice " + i + " of " + ss.length + ": " : "") + cur.label : (building && !st.prs && curNode && curNode.repo === r ? curNode.label : "")}); });
   if (repos.length) { const prS = repos.map(r => S(SK("pr", r))), started = prS.some(x => x !== "todo") || repos.some(r => st.pushed[r]), opened = st.prlist.length >= repos.length, allReady = prS.every(x => x === "done");
     const fg = tree.groups.find(x => x.key === "g:fin");
@@ -917,6 +935,7 @@ function renderPlan(st, appr) {
     (st.slices[rp.repo] || []).map(x => urow("Slice " + x.n + ": ", x, x.state)).join("") +
     '<div class="step"><div class="prow">' + IC(Sg2(st, "self_check", rp.repo)) + '<div><b>Self-check</b><span class="dw">One pass over the diff. Gaps are fixed on the spot.</span></div></div></div>' +
     (st.closing[rp.repo] ? urow("Closing: ", st.closing[rp.repo], ustate(rp.repo, "closing")) : "") +
+    (needsReview(st) ? '<div class="step"><div class="prow">' + IC(Sg2(st, "code_review", rp.repo)) + '<div><b>Review</b><span class="dw">Reviewer agents read the change, one per axis it needs. Findings that stand are fixed.</span></div></div></div>' : "") +
     '<div class="step"><div class="prow">' + IC(Sg2(st, "review", rp.repo)) + '<div><b>Full suite</b><span class="dw mono">' + esc(rp.full_suite || "mvn verify") + "</span></div></div></div></div>").join("") +
     '<div class="list"><div class="ghead"><span class="lbl">' + (repos.length + 1) + '. Finish</span></div><div class="step"><div class="prow">' + IC(st.prs ? "done" : st.prlist.length ? "in_progress" : "todo") + "<div><b>" + (repos.length > 1 ? "One linked draft PR per repo" : "One draft PR") + '</b><span class="dw">CI is seen through to green. Your review of the PRs is the second approval.</span></div></div></div></div>';
   const tests = P.tests_expected_to_change || [];
@@ -969,7 +988,7 @@ window.addEventListener("resize", () => render());
 const SVG = inner => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + "</svg>";
 function renderChrome() {
   $("brand").innerHTML = '<span class="logo">' + SVG('<path d="M2.5 6l6 6-6 6" stroke="var(--g1)" opacity=".35" stroke-width="2.6"/><path d="M9 6l6 6-6 6" stroke="var(--g1)" opacity=".65" stroke-width="2.6"/><path d="M15.500 6l6 6-6 6" stroke="var(--g1)" stroke-width="2.6"/>') + '</span><span class="wm wm-plain">Build Flow</span><span class="btag">Follow an agent as it builds a Jira card into pull requests</span>';
-  const steps = [["Plan", "The agent reads the card and the code, asks what it must, and writes a plan."], ["You approve", "You read the plan here and approve it in chat."], ["Build", "It builds one small slice at a time. A slice is committed only when its tests pass."], ["Check", "It checks its own work against a fixed list, then runs the whole test suite."], ["Pull requests", "It opens one draft PR per repo and sees CI through to green."]];
+  const steps = [["Plan", "The agent reads the card and the code, asks what it must, and writes a plan."], ["You approve", "You read the plan here and approve it in chat."], ["Build", "It builds one small slice at a time. A slice is committed only when its tests pass."], ["Check", "It checks its own work against a fixed list. Reviewer agents that did not write the code then read it, and the whole test suite runs."], ["Pull requests", "It opens one draft PR per repo and sees CI through to green."]];
   $("guide").hidden = !guideOpen;
   $("guide").innerHTML = '<div class="in"><div class="gh"><b>How this works</b><button class="linkbtn" id="guideclose">Close</button></div><div class="ggrid"><div><h3>The flow</h3><ol class="isteps col">' + steps.map((s, i) => "<li><b>" + (i + 1) + ". " + s[0] + "</b><span>" + s[1] + "</span></li>").join("") + '</ol></div><div><h3>What the marks mean</h3><ul class="legend2"><li>' + IC("done") + " Finished and verified</li><li>" + IC("in_progress") + " Being worked on now</li><li>" + IC("todo") + " Not started</li><li>" + IC("wait") + " Waiting on you</li><li>" + IC("failed") + ' A check is failing and being fixed</li></ul><h3>Where you act</h3><p>Only in chat. You answer questions, approve the plan, and ask for changes there. You review the pull requests in Bitbucket or GitHub.</p><h3>The two tabs</h3><p><b>Run</b> shows every step and what happened in it. <b>Plan</b> shows what was agreed: the criteria, the slices, and any changes since.</p><h3>Where the data comes from</h3><p>The agent\'s script writes a log as it works. This page reads it and updates on its own. Nothing here is typed by the agent except its short notes.</p></div></div></div>';
 }

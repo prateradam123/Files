@@ -21,7 +21,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 CARD_RE = re.compile(r"^[A-Z][A-Z0-9]+-\d+$")
 PROTECTED = re.compile(r"^(main|master|develop|development|dev|release([/-].*)?|hotfix([/-].*)?)$")
@@ -46,6 +46,18 @@ SELF_CHECK = [
     ("instructions", "The diff follows the instruction files listed below. Re-read them now, then compare."),
 ]
 SELF_CHECK_IDS = [i for i, _ in SELF_CHECK]
+
+REVIEW_AXES = [
+    ("requirements", "Requirements"), ("correctness", "Correctness"), ("tests", "Test coverage"),
+    ("failure_handling", "Failure handling"), ("security", "Security and data"),
+    ("compatibility", "Compatibility and rollout"), ("design", "Design and implementation quality"),
+    ("data_access", "Data access"), ("messaging", "Messaging and events"),
+]
+CROSS_AXIS = ("cross_repo", "Cross-repo agreement")
+AXIS_LABEL = dict(REVIEW_AXES + [CROSS_AXIS])
+SEVERITIES = ("blocker", "major", "minor", "question")
+OUTCOMES = {"fixed": "Fixed", "asked": "Decided by you", "rejected": "Rejected", "left": "Left as it is"}
+AGENT_ROLES = ("scout", "verifier", "other")
 
 
 # ---------------------------------------------------------------- basics
@@ -397,14 +409,39 @@ def new_repo_state(rp):
     return {"stage": "todo", "start_commit": None, "slices": [new_unit() for _ in rp["slices"]],
             "closing": new_unit() if rp.get("closing") else None,
             "selfcheck": {"started": False, "start_commit": None, "done": False},
+            "review": new_review(),
             "verify": {"ok": False, "tree": None}, "suite": {"ok": False, "tree": None, "passed": 0},
             "fix_commits": [], "commits": [], "pushed_commit": None, "pr": None, "handoff": None}
 
 
+def new_review(since=None):
+    return {"started": False, "planned": False, "done": False, "start_commit": None, "since": since,
+            "fixes_before": 0, "axes": []}
+
+
+def review_of(rs):
+    return rs.setdefault("review", new_review())
+
+
+def needs_review(plan):
+    """Trivial work skips the plan review and the code review, unless its risk is high."""
+    return plan.get("work") != "trivial" or plan.get("risk") == "high"
+
+
+def stage_after_tests(run, rs):
+    return "code_review" if needs_review(run.plan) and not review_of(rs)["done"] else "suite"
+
+
+def plan_review_due(s):
+    return bool(s.get("plan")) and not s.get("approved") and needs_review(s["plan"]) and not s.get("plan_review")
+
+
 # ---------------------------------------------------------------- plan
 
-def unit_key(spec):
-    return json.dumps({k: spec.get(k) for k in ("title", "done_when", "checks", "proves")}, sort_keys=True)
+def unit_key(spec, done=False):
+    """What makes a slice the same slice. A done slice may still change which criteria it is said to prove."""
+    keys = ("title", "done_when", "checks") if done else ("title", "done_when", "checks", "proves")
+    return json.dumps({k: spec.get(k) for k in keys}, sort_keys=True)
 
 
 def validate_plan(plan, card):
@@ -539,6 +576,8 @@ def status_line(run):
         return ICON["wait"] + " Waiting on you: " + qs[0]["question"] + (" (and %d more)" % (len(qs) - 1) if len(qs) > 1 else "")
     if not s.get("plan"):
         return ICON["in_progress"] + " Planning"
+    if plan_review_due(s):
+        return ICON["in_progress"] + " Draft plan, being reviewed before it comes to you"
     if not s.get("approved"):
         return ICON["wait"] + " Draft plan, waiting for your approval"
     for rp in s["plan"]["repos"]:
@@ -547,7 +586,8 @@ def status_line(run):
             continue
         done = sum(1 for u in rs["slices"] if u["state"] == "done")
         label = {"todo": "not started", "build": "building, %d of %d slices verified" % (done, len(rs["slices"])),
-                 "self_check": "self-check", "closing": "closing tests", "suite": "full suite"}[rs["stage"]]
+                 "self_check": "self-check", "closing": "closing tests", "code_review": "review",
+                 "suite": "full suite"}[rs["stage"]]
         return ICON["in_progress"] + " %s: %s" % (rp["repo"], label)
     return ICON["in_progress"] + " Opening pull requests"
 
@@ -646,6 +686,10 @@ def render_plan(run):
         add("- %s **Self-check**" % ICON["done" if sc["done"] else "in_progress" if sc["started"] else "todo"])
         if rp.get("closing"):
             unit_lines("Closing: ", rp["closing"], rs["closing"] or new_unit())
+        if needs_review(plan):
+            rv = review_of(rs)
+            add("- %s **Review** by reviewer subagents, one per axis the change needs" % ICON[
+                "done" if rv["done"] else "in_progress" if rv["started"] else "todo"])
         add("- %s **Full suite:** `%s`" % (ICON["done" if rs["stage"] == "built" else "todo"],
                                            rp.get("full_suite") or "mvn verify"))
     add("")
@@ -759,7 +803,9 @@ def next_step(run):
                     len(qs), " is" if len(qs) == 1 else "s are"),
                 "Then put every open question to the user in one chat message, each with what you found, the "
                 "options and your recommendation. Wait for the reply.",
-                "When they answer: " + F("answered --user-said '<their words>'")]
+                "When they answer: " + F("answered --user-said '<their words>'")] + (
+                    ["The plan review is not recorded yet. Record it before you show the plan: " +
+                     F("plan-reviewed --file <path>")] if plan_review_due(s) else [])
     ask_form = F("ask --question '...' --recommend '...' --found '...' --options 'A: ... | B: ...'")
     cr = open_change(s)
     if cr:
@@ -773,10 +819,23 @@ def next_step(run):
                 "If the user drops it: " + F("change-request --withdrawn '<their words>'")]
     if not s.get("plan"):
         lead = ("If another real decision is open, record it with: " if s.get("asked")
-                else "Read the card and the code. Record each real open decision with: ")
-        return [lead + ask_form,
-                "When none is open, write the plan as a JSON file (reference/plan-format.md) and run: " +
-                F("plan-submit --file <path>")]
+                else "Read the card and the code (SKILL.md, Planning, says when to use flow-scout subagents). "
+                     "Record each real open decision with: ")
+        out = [lead + ask_form,
+               "When none is open, write the plan as a JSON file (reference/plan-format.md) and run: " +
+               F("plan-submit --file <path>")]
+        waiting = [g for g in s.get("agents") or [] if not g.get("done")]
+        if waiting:
+            out.insert(0, "%d subagent%s out (%s). When each returns, record what it found: %s" % (
+                len(waiting), " is" if len(waiting) == 1 else "s are", ", ".join(str(g["n"]) for g in waiting),
+                F("agent-done <number> --takeaway '<one line>'")))
+        return out
+    if plan_review_due(s):
+        depth = "light" if s["plan"].get("risk") == "low" else "full"
+        return ["Do not show the plan to the user yet. It gets one review by a flow-plan-reviewer subagent at depth '%s'. "
+                "If you have not launched it, launch it now (what to give it: reference/review.md)." % depth,
+                "When it has returned: fix what stands (edit the JSON, run plan-submit again), then record the "
+                "review once with: " + F("plan-reviewed --file <path>")]
     if not s.get("approved"):
         return ["Show the user the plan and wait for approval in chat: " + str(run.plan_path()),
                 "When they approve: " + F("plan-approve --user-said '<their words>'"),
@@ -807,6 +866,20 @@ def next_step(run):
             return ["Walk the diff against the self-check list (%d fix%s committed so far). For each fix: %s then %s" % (
                         fixes, "" if fixes == 1 else "es", F("verify"), F("commit --subject '...' --why '...'")),
                     "Then write the report file and run: " + F("selfcheck-report --file <path>")]
+        if st == "code_review":
+            rv = review_of(rs)
+            if not rv["started"]:
+                return [F("review-start")]
+            if not rv["planned"]:
+                return ["Triage the review axes as the pr-review skill says (\"When build-flow calls you\"), write "
+                        "them to a file and run: " + F("review-plan --file <path>") + "   (format: reference/review.md)"]
+            fixes = len(rs["fix_commits"]) - rv.get("fixes_before", 0)
+            return ["The reviewers are recorded. If you have not launched them, launch one pr-reviewer subagent per axis "
+                    "that runs, all at once.",
+                    "When they have returned: check what they say against the code, and give every finding an outcome "
+                    "(reference/review.md). To fix one (%d fix%s committed so far): edit, %s, %s." % (
+                        fixes, "" if fixes == 1 else "es", F("verify"), F("commit --subject '...' --why '...'")),
+                    "Then write the report file and run: " + F("review-report --file <path>")]
         if st == "suite":
             if rs["suite"]["ok"]:
                 try:
@@ -906,6 +979,9 @@ def cmd_status(run, a):
             say("  %s: %s" % (rp["repo"], "; ".join(bits)))
     for q in open_questions(s):
         say("  Open question %d: %s" % (q["n"], q["question"]))
+    for g in s.get("agents") or []:
+        if not g.get("done"):
+            say("  Subagent %d (%s) has no takeaway yet: %s" % (g["n"], g["role"], g["task"]))
     for c in s.get("change_requests") or []:
         say("  Change request %d (%s): %s" % (c["id"], "open" if c.get("open") else "closed", c["text"]))
     for i, n in enumerate(s.get("noticed") or []):
@@ -955,7 +1031,8 @@ def cmd_answered(run, a):
         say("  If the answer changes the criteria, contract, scope or decisions, revise the plan before going on:",
             "  " + run.flow("plan-revise --file <path> --summary '<what changed>' --user-said '<their words>'"))
     else:
-        say("  Put each decision in the plan's 'decisions' with by: \"user\".")
+        say("  Put each decision in the plan's 'decisions' with by: \"user\". If the plan is already submitted and",
+            "  already says what they answered, it does not need to change.")
 
 
 def cmd_plan_submit(run, a):
@@ -986,14 +1063,26 @@ def cmd_plan_submit(run, a):
             run.log("stage", name="plan", state="start")
         run.log("stage", name="plan", state="done")
     run.log("plan", rev=s["plan_rev"], plan=plan)
-    run.log("stage", name="approval", state="start")
-    run.log("waiting", on="approval", text="Read the plan and approve it, or ask for changes, in chat")
+    if plan_review_due(s):
+        if not s.get("plan_review_rev0"):
+            s["plan_review_rev0"] = s["plan_rev"]
+            run.log("stage", name="plan_review", state="start")
+    else:
+        run.log("stage", name="approval", state="start")
+        run.log("waiting", on="approval", text="Read the plan and approve it, or ask for changes, in chat")
+    open_agents = [g for g in s.get("agents") or [] if not g.get("done")]
     n_slices = sum(len(rp["slices"]) + (1 if rp.get("closing") else 0) for rp in plan["repos"])
     say("OK plan version %d saved: %d criteria, %d slices in %d repo%s." % (
         s["plan_rev"], len(plan["criteria"]), n_slices, len(plan["repos"]), "" if len(plan["repos"]) == 1 else "s"),
         "  Plan file: %s" % run.plan_path())
     for w in warnings:
         say("  Note: " + w)
+    if not needs_review(plan):
+        say("  Trivial work, so on purpose: no plan review, and no code review after the build. Tell the user so",
+            "  when you show them the plan.")
+    if open_agents:
+        say("  Note: %d subagent%s you started ha%s no takeaway recorded (agent-done)." % (
+            len(open_agents), "" if len(open_agents) == 1 else "s", "s" if len(open_agents) == 1 else "ve"))
     say("  Write no code until the plan is approved.")
 
 
@@ -1003,6 +1092,9 @@ def cmd_plan_approve(run, a):
         raise Refuse("There is no plan to approve.", next_step(run)[-1])
     if s.get("approved"):
         raise Refuse("The plan is already approved.", next_step(run)[0])
+    if plan_review_due(s):
+        raise Refuse("This plan has not been reviewed yet. It is reviewed before the user is asked to approve it.",
+                     next_step(run)[0])
     said = one_line(a.user_said)
     if not said:
         raise Refuse("--user-said is empty.", "Quote the user's approval. Never approve on their behalf.")
@@ -1010,6 +1102,79 @@ def cmd_plan_approve(run, a):
     run.log("resumed", text=said)
     run.log("stage", name="approval", state="done")
     say("OK plan version %d approved." % s["plan_rev"])
+
+
+def cmd_plan_reviewed(run, a):
+    s = run.state
+    if not s.get("plan"):
+        raise Refuse("There is no plan to review.", next_step(run)[-1])
+    if not plan_review_due(s):
+        raise Refuse("No plan review is due.", next_step(run)[0])
+    rep = load_json_file(a.file, "Plan review")
+    issues = rep.get("issues") if isinstance(rep, dict) else None
+    errors, out = [], []
+    if not isinstance(issues, list):
+        errors.append("'issues' is missing. Use an empty list when the reviewer found nothing.")
+        issues = []
+    for i, it in enumerate(issues):
+        w = "issues[%d]" % (i + 1)
+        if not isinstance(it, dict) or not one_line(it.get("text") or "") or it.get("outcome") not in ("fixed", "kept", "asked"):
+            errors.append("%s: needs 'text' and an 'outcome' of \"fixed\", \"kept\" or \"asked\"." % w)
+            continue
+        note = one_line(it.get("note") or "")
+        if it["outcome"] == "kept" and not note:
+            errors.append("%s: an issue you did not act on needs a 'note' saying why the plan is right as it is." % w)
+        if it["outcome"] == "asked" and not open_questions(s) and not note:
+            errors.append("%s: an issue put to the user needs an open question (ask) or a 'note' with their answer." % w)
+        if len(one_line(it["text"])) > QUESTION_MAX:
+            errors.append("%s: the text is over %d characters. Shorten it." % (w, QUESTION_MAX))
+        out.append([one_line(it["text"])[:QUESTION_MAX], it["outcome"], note[:QUESTION_MAX]])
+    fixed = sum(1 for x in out if x[1] == "fixed")
+    if fixed and s["plan_rev"] <= s.get("plan_review_rev0", s["plan_rev"]):
+        errors.append("%d issue%s marked fixed, but the plan has not been submitted again since the review. Edit the "
+                      "JSON and run plan-submit first." % (fixed, " is" if fixed == 1 else "s are"))
+    if errors:
+        say("REFUSED: the plan review has %d problem%s." % (len(errors), "" if len(errors) == 1 else "s"))
+        for e in errors:
+            say("  - " + e)
+        say("DO: fix them and run the same command again. Format: reference/review.md")
+        return 2
+    depth = "light" if s["plan"].get("risk") == "low" else "full"
+    s["plan_review"] = {"t": now_iso(), "depth": depth, "issues": len(out), "fixed": fixed, "rev": s["plan_rev"]}
+    run.log("plan_review", depth=depth, issues=out, rev=s["plan_rev"])
+    run.log("stage", name="plan_review", state="done", fixes=fixed)
+    run.log("stage", name="approval", state="start")
+    run.log("waiting", on="approval", text="Read the plan and approve it, or ask for changes, in chat")
+    asked = sum(1 for x in out if x[1] == "asked")
+    say("OK plan review recorded: %d issue%s, %d fixed, %d kept as it was%s." % (
+        len(out), "" if len(out) == 1 else "s", fixed, len(out) - fixed - asked,
+        (", %d put to the user" % asked) if asked else ""))
+
+
+def cmd_agent_start(run, a):
+    s = run.state
+    if a.role not in AGENT_ROLES:
+        raise Refuse("--role must be one of: " + ", ".join(AGENT_ROLES),
+                     "Use scout for a flow-scout. Do not record reviewers here: review-plan records the code "
+                     "reviewers and plan-reviewed records the plan reviewer.")
+    agents = s.setdefault("agents", [])
+    entry = {"n": len(agents) + 1, "role": a.role, "task": run.limited("task", a.task, HEADLINE_MAX),
+             "why": one_line(a.why or "")[:HEADLINE_MAX], "done": False}
+    agents.append(entry)
+    run.log("agent", n=entry["n"], role=entry["role"], task=entry["task"], why=entry["why"], state="start")
+    say("OK subagent %d recorded (%s). When it returns: %s" % (
+        entry["n"], entry["role"], run.flow("agent-done %d --takeaway '<what it found, in one line>'" % entry["n"])))
+
+
+def cmd_agent_done(run, a):
+    agents = run.state.get("agents") or []
+    entry = next((g for g in agents if g["n"] == a.n), None)
+    if not entry:
+        raise Refuse("There is no subagent %s." % a.n, "Open: " + (", ".join(str(g["n"]) for g in agents if not g["done"]) or "none"))
+    entry["done"] = True
+    entry["takeaway"] = run.limited("takeaway", a.takeaway, QUESTION_MAX)
+    run.log("agent", n=entry["n"], role=entry["role"], task=entry["task"], state="done", takeaway=entry["takeaway"])
+    say("OK takeaway recorded for subagent %d." % entry["n"])
 
 
 def cmd_plan_revise(run, a):
@@ -1042,7 +1207,8 @@ def cmd_plan_revise(run, a):
         slices = []
         for i, u in enumerate(rs["slices"]):
             has = i < len(rp["slices"])
-            same = has and unit_key(rp["slices"][i]) == unit_key(orp["slices"][i])
+            is_done = u["state"] == "done"
+            same = has and unit_key(rp["slices"][i], is_done) == unit_key(orp["slices"][i], is_done)
             if u["state"] == "done" and not same:
                 errors.append("%s slice %d is already done and cannot change, move or be removed. Add new work as "
                               "a new slice after it." % (name, i + 1))
@@ -1055,7 +1221,7 @@ def cmd_plan_revise(run, a):
             slices.append(new_unit())
         closing = rs.get("closing")
         if closing and closing["state"] == "done":
-            if not rp.get("closing") or unit_key(rp["closing"]) != unit_key(orp["closing"]):
+            if not rp.get("closing") or unit_key(rp["closing"], True) != unit_key(orp["closing"], True):
                 errors.append("%s closing slice is already done and cannot change. Put new tests in a new build slice." % name)
         elif rp.get("closing"):
             same = orp.get("closing") and unit_key(rp["closing"]) == unit_key(orp["closing"])
@@ -1064,10 +1230,15 @@ def cmd_plan_revise(run, a):
             if closing and closing["state"] != "todo":
                 errors.append("%s closing slice is in progress and cannot be removed." % name)
             closing = None
-        if rs["stage"] in ("self_check", "closing", "suite", "built") and any(u["state"] == "todo" for u in slices):
+        if rs["stage"] in ("self_check", "closing", "code_review", "suite", "built") and any(u["state"] == "todo" for u in slices):
+            rv0 = review_of(rs)
             if closing and closing["state"] == "in_progress":
                 errors.append("%s: the closing slice is in progress. Finish it with slice-done first, then add the "
                               "build slice." % name)
+            elif rs["stage"] == "code_review" and rv0["started"] and not rv0["done"]:
+                errors.append("%s: its review is open. Record it first with review-report (a finding the user decided "
+                              "has the outcome \"asked\"), then run plan-revise again. The new slice gets its own "
+                              "review." % name)
             else:
                 reopen.append(name)
         new_repos[name] = dict(rs, slices=slices, closing=closing)
@@ -1100,11 +1271,14 @@ def cmd_plan_revise(run, a):
                 except Refuse:
                     pass
             rs["selfcheck"] = {"started": False, "start_commit": None, "done": False, "since": since}
+            rv = review_of(rs)
+            rs["review"] = new_review(since if rv["done"] else rv.get("since"))
             rs["suite"] = {"ok": False, "tree": None, "passed": 0}
             rs["verify"] = {"ok": False, "tree": None}
             rs["stage"] = "build"
             run.log("stage", name="build", state="start", repo=name, reopened=True, was=was)
-            notes.append("%s is back in its build stage for the new slice. Its self-check and full suite will run again." % name)
+            notes.append("%s is back in its build stage for the new slice. Its self-check%s and full suite will run again." % (
+                name, ", review" if needs_review(plan) else ""))
         elif rs["stage"] == "build" and rs["slices"] and all(u["state"] == "done" for u in rs["slices"]):
             rs["stage"] = "self_check"
             run.log("stage", name="build", state="done", repo=name)
@@ -1446,7 +1620,7 @@ def cmd_slice_done(run, a):
         say("  Change request %d is settled by this commit." % ev["settles"])
     if n is None:
         run.log("stage", name="closing", state="done", repo=name)
-        rs["stage"] = "suite"
+        rs["stage"] = stage_after_tests(run, rs)
     else:
         run.log("slice", repo=name, n=n, state="done", commit=ev["hash"])
         if all(x["state"] == "done" for x in rs["slices"]):
@@ -1534,9 +1708,11 @@ def cmd_selfcheck_report(run, a):
             log_failure=one_line(rep.get("log_failure") or "")[:400])
     run.log("stage", name="self_check", state="done", repo=name, fixes=len(fixed))
     closing = rs.get("closing")
-    rs["stage"] = "closing" if closing and closing["state"] != "done" else "suite"
+    rs["stage"] = "closing" if closing and closing["state"] != "done" else stage_after_tests(run, rs)
     say("OK self-check recorded for %s: %d fixed, %d not applicable." % (
         name, len(fixed), sum(1 for x in out_items if x[1] == "na")))
+    if not needs_review(run.plan):
+        say("  Trivial work, so no code review runs for this repo. That is on purpose.")
 
 
 def targeted_cmds(run, name):
@@ -1569,7 +1745,7 @@ def cmd_verify(run, a):
         raise Refuse("No slice is done in %s yet, so there is nothing to verify." % name, next_step(run)[0])
     repo = run.repo_path(name)
     on_feature_branch(run, repo)
-    ok, results = do_checks(run, name, repo, cmds, "verify", stage={"suite": "review", "built": "pr"}.get(rs["stage"], rs["stage"]))
+    ok, results = do_checks(run, name, repo, cmds, "verify", stage={"suite": "review", "built": "pr"}.get(rs["stage"], rs["stage"]))  # "review" is the log's old name for the full-suite step
     rs["verify"] = {"ok": ok, "tree": tree_now(repo) if ok else None}
     if ok and a.full:
         rs["suite"].update(tree=rs["verify"]["tree"], passed=results[cmds[0][0]]["passed"])
@@ -1606,6 +1782,160 @@ def cmd_commit(run, a):
     say("OK fix committed as %s: %s" % (ev["hash"], ev["subject"]))
     if ev.get("settles"):
         say("  Change request %d is settled by this commit." % ev["settles"])
+
+
+def cmd_review_start(run, a):
+    name = active_repo(run, a.repo)
+    rp, rs = run.repo_plan(name), run.state["repos"][name]
+    if rs["stage"] != "code_review":
+        raise Refuse("%s is not at the review (stage: %s)." % (name, rs["stage"]), next_step(run)[0])
+    repo = run.repo_path(name)
+    on_feature_branch(run, repo)
+    rv = review_of(rs)
+    if not rv["started"]:
+        rv.update(started=True, start_commit=head(repo), fixes_before=len(rs["fix_commits"]))
+        run.log("stage", name="code_review", state="start", repo=name)
+    base = rv.get("since") or rs["start_commit"]
+    names = [r["repo"] for r in run.plan["repos"]]
+    cross = len(names) > 1 and name == names[-1]
+    say("OK review of %s. The pr-review skill does it, in the way its section \"When build-flow calls you\" says." % name,
+        "  If the pr-review skill is not installed, stop and tell the user. Do not review the code yourself instead.",
+        "  What to review%s:" % (" (only what was added since the last review)" if rv.get("since") else ""),
+        "    git -C \"%s\" diff %s..HEAD" % (repo, base[:10]),
+        "  The card's criteria and decisions: %s" % run.plan_path())
+    files = instruction_files(run, repo) + global_instruction_files()
+    for f in files:
+        say("  Instruction file for the reviewers: %s" % f)
+    say("  Axes to triage, each with a reason to run or to skip: " + ", ".join(i for i, _ in REVIEW_AXES))
+    if cross:
+        say("  This is the last repo of %d, so also run the axis cross_repo. Give that reviewer every repo's diff:" % len(names))
+        for other in names:
+            ors = run.state["repos"][other]
+            if ors.get("start_commit"):
+                say("    git -C \"%s\" diff %s..HEAD" % (run.repo_path(other), ors["start_commit"][:10]))
+    say("  File formats for review-plan and review-report: reference/review.md")
+
+
+def cmd_review_plan(run, a):
+    name = active_repo(run, a.repo)
+    rs = run.state["repos"][name]
+    rv = review_of(rs)
+    if rs["stage"] != "code_review" or not rv["started"]:
+        raise Refuse("The review of %s has not been started." % name, next_step(run)[0])
+    rep = load_json_file(a.file, "Review plan")
+    axes = rep.get("axes") if isinstance(rep, dict) else None
+    names = [r["repo"] for r in run.plan["repos"]]
+    cross = len(names) > 1 and name == names[-1]
+    wanted = REVIEW_AXES + ([CROSS_AXIS] if cross else [])
+    errors, out = [], []
+    if not isinstance(axes, dict):
+        errors.append("'axes' is missing.")
+        axes = {}
+    for aid, label in wanted:
+        it = axes.get(aid)
+        if not isinstance(it, dict) or not isinstance(it.get("run"), bool) or not one_line(it.get("why") or ""):
+            errors.append("%s: needs 'run' (true or false) and a 'why' in one line." % aid)
+            continue
+        out.append([aid, it["run"], one_line(it["why"])[:HEADLINE_MAX]])
+    if cross and isinstance(axes.get("cross_repo"), dict) and axes["cross_repo"].get("run") is False:
+        errors.append("cross_repo: must run for the last repo of a multi-repo card.")
+    if not errors and not any(x[1] for x in out):
+        errors.append("No axis runs. A change that is being reviewed needs at least one reviewer.")
+    if errors:
+        say("REFUSED: the review plan has %d problem%s." % (len(errors), "" if len(errors) == 1 else "s"))
+        for e in errors:
+            say("  - " + e)
+        say("DO: fix the file and run the same command again. Format: reference/review.md")
+        return 2
+    rv.update(planned=True, axes=out)
+    run.log("review_plan", repo=name, axes=[[x[0], AXIS_LABEL[x[0]], x[1], x[2]] for x in out])
+    running = [x[0] for x in out if x[1]]
+    say("OK %d reviewer%s to launch: %s. Skipped: %s." % (
+        len(running), "" if len(running) == 1 else "s", ", ".join(running),
+        ", ".join(x[0] for x in out if not x[1]) or "none"))
+
+
+def cmd_review_report(run, a):
+    name = active_repo(run, a.repo)
+    rs = run.state["repos"][name]
+    rv = review_of(rs)
+    if rs["stage"] != "code_review" or not rv["planned"]:
+        raise Refuse("The review of %s has no recorded axes yet." % name, next_step(run)[0])
+    rep = load_json_file(a.file, "Review report")
+    if not isinstance(rep, dict):
+        rep = {}
+    takes = rep.get("axes") if isinstance(rep.get("axes"), dict) else {}
+    running = [x[0] for x in rv["axes"] if x[1]]
+    errors, out_axes, out_find = [], [], []
+    for aid in running:
+        t = one_line(str(takes.get(aid) or ""))
+        if not t:
+            errors.append("axes.%s: needs the reviewer's takeaway in one line." % aid)
+        out_axes.append([aid, AXIS_LABEL[aid], t[:QUESTION_MAX]])
+    findings = rep.get("findings")
+    if not isinstance(findings, list):
+        errors.append("'findings' is missing. Use an empty list when no finding stood.")
+        findings = []
+    for i, f in enumerate(findings):
+        w = "findings[%d]" % (i + 1)
+        if not isinstance(f, dict):
+            errors.append("%s: must be an object." % w)
+            continue
+        text, note = one_line(f.get("text") or ""), one_line(f.get("note") or "")
+        if f.get("axis") not in AXIS_LABEL:
+            errors.append("%s: 'axis' must be one of the axis ids." % w)
+        if f.get("severity") not in SEVERITIES:
+            errors.append("%s: 'severity' must be one of: %s." % (w, ", ".join(SEVERITIES)))
+        if not text:
+            errors.append("%s: needs 'text': what is wrong and why it matters." % w)
+        elif len(text) > QUESTION_MAX:
+            errors.append("%s: the text is %d characters. The limit is %d." % (w, len(text), QUESTION_MAX))
+        if f.get("outcome") not in OUTCOMES:
+            errors.append("%s: 'outcome' must be one of: %s." % (w, ", ".join(OUTCOMES)))
+        elif f["outcome"] != "fixed" and not note:
+            errors.append("%s: an outcome of \"%s\" needs a 'note': %s." % (w, f["outcome"], {
+                "asked": "what the user decided, in their words", "rejected": "why the finding is wrong",
+                "left": "why it is left as it is"}[f["outcome"]]))
+        if f.get("outcome") == "left" and f.get("severity") in ("blocker", "major"):
+            errors.append("%s: a %s cannot be left. Fix it, put it to the user (ask), or reject it with the reason." % (
+                w, f.get("severity")))
+        out_find.append({"axis": f.get("axis"), "severity": f.get("severity"), "where": one_line(f.get("where") or "")[:200],
+                         "text": text[:QUESTION_MAX], "outcome": f.get("outcome"), "note": note[:QUESTION_MAX]})
+    repo = run.repo_path(name)
+    n_fixed = sum(1 for f in out_find if f["outcome"] == "fixed")
+    if not errors:
+        if n_fixed and len(rs["fix_commits"]) <= rv.get("fixes_before", 0):
+            errors.append("%d finding%s marked fixed, but no fix was committed since the review started." % (
+                n_fixed, " is" if n_fixed == 1 else "s are"))
+        if tree_now(repo) != head_tree(repo):
+            errors.append("There are uncommitted changes. Verify and commit each fix first.")
+    if errors:
+        say("REFUSED: the review report has %d problem%s." % (len(errors), "" if len(errors) == 1 else "s"))
+        for e in errors:
+            say("  - " + e)
+        say("DO: fix them and run the same command again. Format: reference/review.md")
+        return 2
+    for f in out_find:
+        run.log("finding", repo=name, review=True, axis=f["axis"], severity=f["severity"],
+                caught_by=AXIS_LABEL[f["axis"]] + " reviewer", where=f["where"], text=f["text"],
+                outcome=OUTCOMES[f["outcome"]] + (": " + f["note"] if f["note"] else "."), result=f["outcome"])
+    dropped = rep.get("dropped") if isinstance(rep.get("dropped"), int) else 0
+    run.log("review", repo=name, axes=out_axes, findings=len(out_find), fixed=n_fixed, dropped=dropped)
+    run.log("stage", name="code_review", state="done", repo=name, fixes=n_fixed)
+    rv["done"] = True
+    rs["stage"] = "suite"
+    rs.setdefault("review_left", []).extend(
+        "%s (%s)" % (f["text"], f["note"]) for f in out_find if f["outcome"] == "left")
+    counts = ", ".join("%d %s" % (sum(1 for f in out_find if f["outcome"] == k), v.lower()) for k, v in OUTCOMES.items()
+                       if any(f["outcome"] == k for f in out_find))
+    say("OK review recorded for %s: %d finding%s%s%s." % (
+        name, len(out_find), "" if len(out_find) == 1 else "s", (" (" + counts + ")") if counts else "",
+        (", %d dropped when you checked them" % dropped) if dropped else ""))
+    if any(f["outcome"] == "asked" for f in out_find):
+        say("  If a decision the user made here changes the plan (a criterion, a decision, a new slice), run plan-revise",
+            "  now, before the suite. A new slice gets its own self-check and review.")
+    if any(f["outcome"] == "left" for f in out_find):
+        say("  Findings left as they are will be listed for the user when the run finishes.")
 
 
 def cmd_suite(run, a):
@@ -1854,6 +2184,11 @@ def cmd_finish(run, a):
         say("  %s %s%s" % (p["repo"], p["url"], (", merge %s" % ("first" if p["order"] == 1 else "after the one above"))
                            if len(prs) > 1 else ""))
     say("  Each PR needs their review, and an approval from someone else, before it merges.")
+    left = [(n, t) for n, rs in s["repos"].items() for t in rs.get("review_left") or []]
+    if left:
+        say("  Review findings left as they are:")
+        for n, t in left:
+            say("    - %s%s" % ((n + ": ") if len(s["repos"]) > 1 else "", t))
     if s.get("noticed"):
         say("  Noticed outside this card and left alone:")
         for i, n in enumerate(s["noticed"]):
@@ -1911,6 +2246,9 @@ def cmd_brief(run, a):
         say("  [%s] %sself-check" % ("done" if ors["selfcheck"]["done"] else "in progress" if ors["selfcheck"]["started"] else "todo", tag))
         if orp.get("closing"):
             say("  [%s] %sclosing slice: %s" % (ors["closing"]["state"], tag, orp["closing"]["title"]))
+        if needs_review(plan):
+            orv = review_of(ors)
+            say("  [%s] %sreview" % ("done" if orv["done"] else "in progress" if orv["started"] else "todo", tag))
         if ors["pr"]:
             say("  %sPR: %s" % (tag, ors["pr"]["url"]))
     for ch in s.get("changes") or []:
@@ -2121,6 +2459,15 @@ def build_parser():
     sp.add_argument("--no-open", action="store_true")
     sp = cmd("plan-submit", cmd_plan_submit, "save a draft plan")
     sp.add_argument("--file", required=True)
+    sp = cmd("plan-reviewed", cmd_plan_reviewed, "record the plan reviewer's issues and what happened to each")
+    sp.add_argument("--file", required=True)
+    sp = cmd("agent-start", cmd_agent_start, "record a subagent you are launching (scouts, verifiers)")
+    sp.add_argument("--role", required=True)
+    sp.add_argument("--task", required=True)
+    sp.add_argument("--why")
+    sp = cmd("agent-done", cmd_agent_done, "record what a subagent found")
+    sp.add_argument("n", type=int)
+    sp.add_argument("--takeaway", required=True)
     sp = cmd("plan-approve", cmd_plan_approve, "record the user's approval")
     sp.add_argument("--user-said", required=True)
     sp = cmd("plan-revise", cmd_plan_revise, "change the plan after approval")
@@ -2143,6 +2490,14 @@ def build_parser():
     sp.add_argument("--repo")
     sp.add_argument("--full", action="store_true", help="run the full suite instead of the slices' own checks")
     commit_args(cmd("commit", cmd_commit, "commit a verified fix"))
+    sp = cmd("review-start", cmd_review_start, "start the review of a repo")
+    sp.add_argument("--repo")
+    sp = cmd("review-plan", cmd_review_plan, "record which review axes run and why")
+    sp.add_argument("--file", required=True)
+    sp.add_argument("--repo")
+    sp = cmd("review-report", cmd_review_report, "record the review's findings and what happened to each")
+    sp.add_argument("--file", required=True)
+    sp.add_argument("--repo")
     sp = cmd("suite", cmd_suite, "run the full suite")
     sp.add_argument("--repo")
     sp = cmd("repo-done", cmd_repo_done, "close a built and verified repo")

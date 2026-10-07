@@ -19,7 +19,7 @@ Write the JSON with your file-editing tool, not with a PowerShell command.
 | `risk_reason` | yes | One sentence on why the risk is what it is. |
 | `branch` | yes | The feature branch, used in every repo. Form: `feature/<CARD>-<short-name>`. |
 | `criteria` | yes | List of acceptance criteria. See below. |
-| `decisions` | no | List of `{ "text", "by", "repo" }`. `by` is `"user"` for an answer the user gave, `"default"` for one you chose that they can veto. `repo` is optional: give it when the decision concerns one repo only, so it appears only in that repo's PR. |
+| `decisions` | no | List of `{ "text", "by", "repo" }`. `by` is `"user"` for an answer the user gave to a question, `"default"` for one you chose that they can veto. A default stays a default after they approve the plan. `repo` is optional: give it when the decision concerns one repo only, so it appears only in that repo's PR. |
 | `assumptions` | no | List of things you took as given and did not check with the user. |
 | `contract` | no | `{ "summary", "items": [ { "name", "kind", "change" } ] }`. Fill it whenever an API, event, topic, table or config key is added or changed. Give exact names. |
 | `tests_expected_to_change` | no | List of `{ "test", "change", "repo" }` for existing test classes in which this card must change or remove lines. `test` is the class name. `repo` is the repo it lives in: give it whenever the plan has more than one repo. See "Existing tests" below. |
@@ -99,7 +99,7 @@ Run `plan-revise --file <path> --summary '<what changed>'`.
 
 - **No approval needed:** changing, adding, removing or resplitting slices that are not done.
 - **The user must agree first:** any change to `what`, `why`, `not_included`, `criteria`, `contract`, `decisions`, `tests_expected_to_change`, `risk`, `rollout`, `merge_order`, `branch`, or the list of repos and their base branches. Tell the user what changes and why, wait for their answer, then add `--user-said '<their words>'`.
-- **A slice that is done cannot change.** Add new work as a new slice after it. This includes a closing slice that is done: it is not run again, so a later build slice edits its tests when it has to, and the full suite proves them.
+- **A slice that is done cannot change, except for its `proves` list.** Add new work as a new slice after it. This includes a closing slice that is done: it is not run again, so a later build slice edits its tests when it has to, and the full suite proves them.
 - **An answer from the user is an approval.** When a question you asked with `ask` leads to a plan change, pass their answer as `--user-said`.
 - **A build slice can be added at any point**, even after the self-check, the closing slice, the full suite or the PR. The script puts that repo back in its build stage, and its self-check and full suite run again. New behavior always goes in a build slice, never in the closing slice.
 
