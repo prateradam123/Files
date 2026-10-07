@@ -1,0 +1,100 @@
+{
+  "title": "Publish vendor status event on contract approval",
+  "what": "The approval service publishes a vendor status event when a contract is approved.",
+  "why": "Vendors need the approval status without polling for it.",
+  "not_included": [
+    "Contracts approved before this change get no event.",
+    "The approval API itself does not change."
+  ],
+  "work": "standard",
+  "risk": "high",
+  "risk_reason": "It adds a new event that another service will consume.",
+  "branch": "feature/ABC-123-vendor-status",
+  "criteria": [
+    {
+      "id": "AC1",
+      "text": "Approving a contract publishes a vendor status event",
+      "test": { "layer": "component", "scenario": "approval publishes the event" }
+    },
+    {
+      "id": "AC2",
+      "text": "No event is published when approval rolls back",
+      "test": { "layer": "spring", "scenario": "rollback leaves no outbox row" }
+    },
+    {
+      "id": "AC3",
+      "text": "Publishing can be switched off by config",
+      "test": { "layer": "unit", "scenario": "disabled setting publishes nothing" }
+    }
+  ],
+  "decisions": [
+    { "text": "Only new approvals publish an event. There is no backfill.", "by": "user" },
+    { "text": "The event carries contract id, vendor id, status and timestamp.", "by": "default" },
+    { "text": "Publishing ships switched off until the consumer is deployed.", "by": "default" }
+  ],
+  "assumptions": [
+    "The outbox table can live in the approval service's own schema.",
+    "A delay of a few seconds between approval and the event is acceptable."
+  ],
+  "contract": {
+    "summary": "New event VendorStatusChanged on a new topic. Nothing existing changes shape.",
+    "items": [
+      { "name": "contract.vendor-status.v1", "kind": "topic", "change": "new" },
+      { "name": "VendorStatusChanged", "kind": "avro schema", "change": "new: contractId, vendorId, status, occurredAt" },
+      { "name": "outbox_event", "kind": "table", "change": "new" },
+      { "name": "vendor.status.enabled", "kind": "config key", "change": "new, default false, in every environment file" }
+    ]
+  },
+  "tests_expected_to_change": [
+    { "test": "ContractApprovalServiceTest", "change": "Two assertions on the approval result gain the outbox write." }
+  ],
+  "repos": [
+    {
+      "repo": "contract-approval-service",
+      "base": "develop",
+      "in_flight": "No one else is working in these files.",
+      "full_suite": "mvn verify",
+      "slices": [
+        {
+          "title": "Add outbox table migration",
+          "done_when": "The migration runs on an empty and an existing database",
+          "approach": "Follow the existing audit_event migration. No existing table changes.",
+          "proves": [],
+          "tests_to_add": ["OutboxMigrationTest"],
+          "checks": [ { "cmd": "mvn -Dtest=OutboxMigrationTest test" } ]
+        },
+        {
+          "title": "Write status to outbox on approval",
+          "done_when": "An approval writes one outbox row, and a rollback writes none",
+          "approach": "Follow ApprovalAuditWriter, which already writes inside the approval transaction.",
+          "proves": ["AC2"],
+          "tests_to_add": ["OutboxWriterTest", "ApprovalRollbackTest"],
+          "depends_on": "Slice 1",
+          "checks": [ { "cmd": "mvn -Dtest=OutboxWriterTest,ApprovalRollbackTest test" } ]
+        },
+        {
+          "title": "Publish event from outbox relay",
+          "done_when": "The relay publishes each row once, and nothing when switched off",
+          "approach": "Use the internal framework's scheduled publisher. Add vendor.status.enabled to every environment file.",
+          "proves": ["AC3"],
+          "tests_to_add": ["OutboxRelayTest", "PublisherSwitchTest"],
+          "depends_on": "Slice 2",
+          "checks": [ { "cmd": "mvn -Dtest=OutboxRelayTest,PublisherSwitchTest test" } ]
+        }
+      ],
+      "closing": {
+        "title": "Closing component and contract tests",
+        "done_when": "Approval publishes the event end to end, and the event matches its contract",
+        "approach": "Extend the existing approval component test. Add the provider contract test.",
+        "proves": ["AC1"],
+        "tests_to_add": ["ApprovalPublishesStatusIT", "VendorStatusContractTest"],
+        "checks": [ { "cmd": "mvn -Dit.test=ApprovalPublishesStatusIT,VendorStatusContractTest verify", "timeout_sec": 900 } ]
+      }
+    }
+  ],
+  "rollout": [
+    "Merge and deploy with vendor.status.enabled set to false.",
+    "Switch publishing on per environment once the consumer is deployed.",
+    "To back out, switch publishing off. No data needs reverting."
+  ]
+}
